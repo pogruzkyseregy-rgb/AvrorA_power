@@ -60,6 +60,14 @@ fun PowerScreen() {
         .collectAsState(initial = PowerReader.snapshot(ctx))
     var screen by rememberSaveable { mutableStateOf("home") }
 
+    // Bumped every time the charger connects; each bump restarts the plug animation.
+    var burst by remember { mutableIntStateOf(0) }
+    var lastCharging by remember { mutableStateOf(state.isCharging) }
+    LaunchedEffect(state.isCharging) {
+        if (state.isCharging && !lastCharging) burst++
+        lastCharging = state.isCharging
+    }
+
     LaunchedEffect(state) { PowerWidget.refreshAll(ctx) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -74,6 +82,7 @@ fun PowerScreen() {
             when {
                 screen == "home" -> ChargePage(
                     state = state,
+                    burst = burst,
                     onOpen = { key -> screen = "chart:$key" },
                     onTitle = { screen = "settings" },
                 )
@@ -90,7 +99,7 @@ fun PowerScreen() {
 }
 
 @Composable
-fun ChargePage(state: PowerState, onOpen: (String) -> Unit, onTitle: () -> Unit) {
+fun ChargePage(state: PowerState, burst: Int, onOpen: (String) -> Unit, onTitle: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -100,7 +109,7 @@ fun ChargePage(state: PowerState, onOpen: (String) -> Unit, onTitle: () -> Unit)
     ) {
         Header(state, onTitle)
         Spacer(Modifier.height(20.dp))
-        ChargeDial(state, onClick = { onOpen("LEVEL") })
+        ChargeDial(state, burst, onClick = { onOpen("LEVEL") })
         Spacer(Modifier.height(14.dp))
         StatusBanner(state)
         Spacer(Modifier.height(18.dp))
@@ -156,7 +165,7 @@ fun Header(s: PowerState, onTitle: () -> Unit) {
 }
 
 @Composable
-fun ChargeDial(s: PowerState, onClick: () -> Unit) {
+fun ChargeDial(s: PowerState, burst: Int, onClick: () -> Unit) {
     val transition = rememberInfiniteTransition(label = "dial")
     val rotation by transition.animateFloat(
         initialValue = 0f, targetValue = 360f,
@@ -211,7 +220,9 @@ fun ChargeDial(s: PowerState, onClick: () -> Unit) {
             },
         contentAlignment = Alignment.Center,
     ) {
-        PlugBurst(active = s.isCharging)
+        if (burst > 0) {
+            key(burst) { PlugBurst() }
+        }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 "${s.level}",
@@ -236,35 +247,33 @@ fun ChargeDial(s: PowerState, onClick: () -> Unit) {
 }
 
 /**
- * Plays once each time the charger connects: a glow and two expanding rings.
- * progress is read inside Canvas's draw block, so the animation redraws every frame.
+ * One run of the plug-in animation: a glow and two expanding rings, about 1.8 s.
+ * Created fresh (via key) on every connection, so it always starts from zero.
+ * The value is read during composition, so each frame redraws the canvas.
  */
 @Composable
-fun PlugBurst(active: Boolean) {
-    val progress = remember { Animatable(1f) }
-    LaunchedEffect(active) {
-        if (active) {
-            progress.snapTo(0f)
-            progress.animateTo(1f, tween(1600, easing = FastOutSlowInEasing))
-        }
+fun PlugBurst() {
+    val anim = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        anim.animateTo(1f, tween(1800, easing = FastOutSlowInEasing))
     }
+    val p = anim.value
+    if (p >= 1f) return
+
     Canvas(Modifier.size(280.dp)) {
-        val p = progress.value
-        if (p < 1f) {
-            val base = size.minDimension / 2
-            drawCircle(
-                color = Cyan.copy(alpha = (1f - p) * 0.25f),
-                radius = base * 0.9f,
-            )
-            for (k in 0..2) {
-                val q = (p - k * 0.2f).coerceIn(0f, 1f)
-                if (q > 0f) {
-                    drawCircle(
-                        color = Cyan.copy(alpha = (1f - q) * 0.9f),
-                        radius = base * (0.4f + q * 0.6f),
-                        style = Stroke(3.dp.toPx()),
-                    )
-                }
+        val base = size.minDimension / 2
+        drawCircle(
+            color = Cyan.copy(alpha = (1f - p) * 0.25f),
+            radius = base * 0.9f,
+        )
+        for (k in 0..2) {
+            val q = (p - k * 0.2f).coerceIn(0f, 1f)
+            if (q > 0f) {
+                drawCircle(
+                    color = Cyan.copy(alpha = (1f - q) * 0.9f),
+                    radius = base * (0.4f + q * 0.6f),
+                    style = Stroke(3.dp.toPx()),
+                )
             }
         }
     }
