@@ -41,7 +41,7 @@ import com.avrora.power.ui.HudBackground
 import com.avrora.power.ui.HudMetric
 import com.avrora.power.ui.HudPanel
 import com.avrora.power.ui.Theme
-import com.avrora.power.ui.drawTickRing
+import com.avrora.power.ui.drawDial
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
@@ -188,34 +188,12 @@ fun ChargeDial(s: PowerState, burst: Int, onClick: () -> Unit) {
             .size(280.dp)
             .clickable(onClick = onClick)
             .drawBehind {
-                drawTickRing(
+                drawDial(
+                    variant = Theme.dial,
                     level = animatedLevel,
                     rotation = rotation,
                     charging = s.isCharging,
                     pulse = pulse,
-                    style = Theme.style,
-                )
-                val stroke = 10.dp.toPx()
-                val r = size.minDimension / 2 - 44.dp.toPx()
-                val topLeft = Offset(center.x - r, center.y - r)
-                val arcSize = Size(r * 2, r * 2)
-                drawArc(
-                    color = Cyan.copy(alpha = 0.12f),
-                    startAngle = -90f,
-                    sweepAngle = 360f,
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = arcSize,
-                    style = Stroke(stroke),
-                )
-                drawArc(
-                    color = Cyan,
-                    startAngle = -90f,
-                    sweepAngle = 360f * animatedLevel,
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = arcSize,
-                    style = Stroke(stroke, cap = StrokeCap.Round),
                 )
             },
         contentAlignment = Alignment.Center,

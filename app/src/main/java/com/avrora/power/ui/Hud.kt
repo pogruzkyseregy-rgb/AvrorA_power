@@ -31,8 +31,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.cos
-import kotlin.math.sin
 
 /** Rectangle with the top-left and bottom-right corners cut diagonally. */
 private fun chamfer(w: Float, h: Float, cut: Float) = Path().apply {
@@ -220,89 +218,6 @@ fun HudMetric(
             Spacer8()
             SegmentBar(bar)
         }
-    }
-}
-
-/** Charge dial background, drawn in the chosen style. */
-fun DrawScope.drawTickRing(
-    level: Float,
-    rotation: Float,
-    charging: Boolean,
-    pulse: Float,
-    style: VisualStyle,
-) {
-    val c = Offset(size.width / 2, size.height / 2)
-    val outer = size.minDimension / 2 - 4.dp.toPx()
-    val innerR = outer - 26.dp.toPx()
-    val box = Offset(c.x - outer, c.y - outer)
-    val boxSize = Size(outer * 2, outer * 2)
-
-    when (style) {
-        VisualStyle.CHAMFER, VisualStyle.STRIPE -> {
-            drawTicks(level, rotation, c, outer)
-        }
-        VisualStyle.BRACKET -> {
-            for (i in 0..3) {
-                val lit = level > i / 4f
-                drawArc(
-                    color = if (lit) Cyan else Cyan.copy(alpha = 0.18f),
-                    startAngle = -90f + i * 90f + 8f,
-                    sweepAngle = 74f,
-                    useCenter = false,
-                    topLeft = box,
-                    size = boxSize,
-                    style = Stroke(3.dp.toPx(), cap = StrokeCap.Butt),
-                )
-            }
-        }
-        VisualStyle.GLASS -> {
-            drawCircle(Cyan.copy(alpha = 0.06f), radius = outer, center = c)
-        }
-        VisualStyle.RING -> {
-            for (i in 0 until 24) {
-                val lit = i / 24f < level
-                drawArc(
-                    color = if (lit) Cyan else Cyan.copy(alpha = 0.15f),
-                    startAngle = -90f + i * 15f + 1.5f,
-                    sweepAngle = 12f,
-                    useCenter = false,
-                    topLeft = box,
-                    size = boxSize,
-                    style = Stroke(6.dp.toPx()),
-                )
-            }
-        }
-    }
-
-    drawCircle(Cyan.copy(alpha = 0.25f), radius = innerR, center = c, style = Stroke(1.dp.toPx()))
-
-    if (charging) {
-        drawArc(
-            color = Cyan.copy(alpha = pulse),
-            startAngle = rotation,
-            sweepAngle = 70f,
-            useCenter = false,
-            topLeft = Offset(c.x - innerR, c.y - innerR),
-            size = Size(innerR * 2, innerR * 2),
-            style = Stroke(3.dp.toPx()),
-        )
-    }
-}
-
-private fun DrawScope.drawTicks(level: Float, rotation: Float, c: Offset, outer: Float) {
-    val tickLen = 8.dp.toPx()
-    for (i in 0 until 60) {
-        val a = (i * 6f + rotation * 0.2f) * Math.PI.toFloat() / 180f
-        val lit = i.toFloat() / 60f < level
-        val r1 = outer - tickLen
-        val p1 = Offset(c.x + cos(a) * r1, c.y + sin(a) * r1)
-        val p2 = Offset(c.x + cos(a) * outer, c.y + sin(a) * outer)
-        drawLine(
-            color = if (lit) Cyan else Cyan.copy(alpha = 0.18f),
-            start = p1,
-            end = p2,
-            strokeWidth = if (i % 5 == 0) 2.dp.toPx() else 1.dp.toPx(),
-        )
     }
 }
 

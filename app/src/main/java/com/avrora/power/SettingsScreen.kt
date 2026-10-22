@@ -3,6 +3,7 @@ package com.avrora.power
 import android.content.Context
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.avrora.power.ui.Cyan
+import com.avrora.power.ui.DialVariant
+import com.avrora.power.ui.drawDial
 import com.avrora.power.ui.HudPanel
 import com.avrora.power.ui.SegmentBar
 import com.avrora.power.ui.Theme
@@ -80,6 +83,38 @@ fun SettingsScreen(onBack: () -> Unit) {
                         SegmentBar(progress = 0.7f, style = st)
                     }
                     if (st == Theme.style) {
+                        Spacer(Modifier.width(8.dp))
+                        Text("●", color = Cyan, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+        Text("КОЛЬЦО", color = Cyan.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
+        Spacer(Modifier.height(6.dp))
+
+        DialVariant.values().forEach { v ->
+            HudPanel(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                onClick = { Theme.setDial(ctx, v) },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Canvas(Modifier.size(64.dp)) {
+                        drawDial(v, 0.7f, 0f, false, 1f)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            v.title,
+                            color = Cyan,
+                            fontSize = 14.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(v.hint, color = Cyan.copy(alpha = 0.5f), fontSize = 10.sp)
+                    }
+                    if (v == Theme.dial) {
                         Spacer(Modifier.width(8.dp))
                         Text("●", color = Cyan, fontSize = 12.sp)
                     }
