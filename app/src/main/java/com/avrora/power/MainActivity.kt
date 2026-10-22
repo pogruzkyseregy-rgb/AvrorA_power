@@ -57,9 +57,12 @@ class MainActivity : ComponentActivity() {
                 this, arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1,
             )
         }
-        androidx.core.content.ContextCompat.startForegroundService(
-            this, android.content.Intent(this, RecorderService::class.java),
-        )
+        // Never let the recorder take the UI down with it.
+        runCatching {
+            androidx.core.content.ContextCompat.startForegroundService(
+                this, android.content.Intent(this, RecorderService::class.java),
+            )
+        }
         setContent { PowerScreen() }
     }
 }

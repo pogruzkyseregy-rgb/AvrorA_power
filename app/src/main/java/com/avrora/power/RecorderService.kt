@@ -32,7 +32,13 @@ class RecorderService : Service() {
     override fun onCreate() {
         super.onCreate()
         Alerts.ensureChannels(this)
-        startForeground(NOTIFICATION_ID, Alerts.serviceNotification(this))
+        // Android 14+ requires the foreground service type to be passed explicitly.
+        androidx.core.app.ServiceCompat.startForeground(
+            this,
+            NOTIFICATION_ID,
+            Alerts.serviceNotification(this),
+            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+        )
         registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
 
         scope.launch {
