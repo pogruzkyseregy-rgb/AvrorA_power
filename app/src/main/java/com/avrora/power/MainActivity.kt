@@ -84,6 +84,7 @@ fun PowerScreen() {
                     onBack = { screen = "home" },
                 )
             }
+            LowBatteryWarning(level = state.level, charging = state.isCharging)
         }
     }
 }
