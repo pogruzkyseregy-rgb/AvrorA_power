@@ -2,6 +2,7 @@ package com.avrora.power.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,13 +13,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -27,11 +28,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.cos
+import kotlin.math.sin
 
 val Cyan = Color(0xFF00E5FF)
 val Bg = Color(0xFF03060A)
 
-/** Chamfered rectangle: top-left and bottom-right corners cut diagonally. */
+/** Rectangle with the top-left and bottom-right corners cut diagonally. */
 private fun chamfer(w: Float, h: Float, cut: Float) = Path().apply {
     moveTo(cut, 0f)
     lineTo(w, 0f)
@@ -42,7 +45,7 @@ private fun chamfer(w: Float, h: Float, cut: Float) = Path().apply {
     close()
 }
 
-/** Dark grid background with faint cyan lines, like the HUD references. */
+/** Dark background with a faint cyan grid. */
 @Composable
 fun HudBackground(content: @Composable () -> Unit) {
     Box(
@@ -66,7 +69,7 @@ fun HudBackground(content: @Composable () -> Unit) {
     ) { content() }
 }
 
-/** Panel with chamfered outline, bright corner accents and soft fill. */
+/** Panel with a chamfered outline and bright accents on the cut edges. */
 @Composable
 fun HudPanel(
     modifier: Modifier = Modifier,
@@ -79,7 +82,6 @@ fun HudPanel(
                 val path = chamfer(size.width, size.height, cut)
                 drawPath(path, Cyan.copy(alpha = 0.07f))
                 drawPath(path, Cyan.copy(alpha = 0.45f), style = Stroke(width = 1.dp.toPx()))
-                // bright accents on the cut edges and the top-left corner
                 val accent = 3.dp.toPx()
                 drawLine(Cyan, Offset(0f, cut), Offset(cut, 0f), strokeWidth = accent)
                 drawLine(Cyan, Offset(size.width, size.height - cut), Offset(size.width - cut, size.height), strokeWidth = accent)
@@ -90,7 +92,7 @@ fun HudPanel(
     )
 }
 
-/** Segmented bar: `progress` in 0..1 lights up segments. */
+/** Segmented bar: progress in 0..1 lights up segments. */
 @Composable
 fun SegmentBar(progress: Float, segments: Int = 20, modifier: Modifier = Modifier) {
     val lit = (progress.coerceIn(0f, 1f) * segments).toInt()
@@ -113,12 +115,7 @@ fun SegmentBar(progress: Float, segments: Int = 20, modifier: Modifier = Modifie
 @Composable
 fun HudMetric(label: String, value: String, bar: Float? = null, modifier: Modifier = Modifier) {
     HudPanel(modifier = modifier) {
-        Text(
-            label,
-            color = Cyan.copy(alpha = 0.6f),
-            fontSize = 10.sp,
-            letterSpacing = 2.sp,
-        )
+        Text(label, color = Cyan.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
         Spacer8()
         Text(
             value,
@@ -134,19 +131,18 @@ fun HudMetric(label: String, value: String, bar: Float? = null, modifier: Modifi
     }
 }
 
-/** Decorative dial ring: ticks light up with `level`, optional inner arc. */
+/** Dial ticks light up to `level`; inner ring with a spinning arc while charging. */
 fun DrawScope.drawTickRing(level: Float, rotation: Float, charging: Boolean, pulse: Float) {
     val c = Offset(size.width / 2, size.height / 2)
     val outer = size.minDimension / 2 - 4.dp.toPx()
     val tickLen = 8.dp.toPx()
 
-    // Ticks
     for (i in 0 until 60) {
         val a = (i * 6f + rotation * 0.2f) * Math.PI.toFloat() / 180f
         val lit = i.toFloat() / 60f < level
         val r1 = outer - tickLen
-        val p1 = Offset(c.x + kotlin.math.cos(a) * r1, c.y + kotlin.math.sin(a) * r1)
-        val p2 = Offset(c.x + kotlin.math.cos(a) * outer, c.y + kotlin.math.sin(a) * outer)
+        val p1 = Offset(c.x + cos(a) * r1, c.y + sin(a) * r1)
+        val p2 = Offset(c.x + cos(a) * outer, c.y + sin(a) * outer)
         drawLine(
             color = if (lit) Cyan else Cyan.copy(alpha = 0.18f),
             start = p1,
@@ -155,11 +151,9 @@ fun DrawScope.drawTickRing(level: Float, rotation: Float, charging: Boolean, pul
         )
     }
 
-    // Inner thin ring
     val innerR = outer - 26.dp.toPx()
     drawCircle(Cyan.copy(alpha = 0.25f), radius = innerR, center = c, style = Stroke(1.dp.toPx()))
 
-    // Rotating dashed arc on the inner ring while charging
     if (charging) {
         drawArc(
             color = Cyan.copy(alpha = pulse),
@@ -167,17 +161,67 @@ fun DrawScope.drawTickRing(level: Float, rotation: Float, charging: Boolean, pul
             sweepAngle = 70f,
             useCenter = false,
             topLeft = Offset(c.x - innerR, c.y - innerR),
-            size = androidx.compose.ui.geometry.Size(innerR * 2, innerR * 2),
+            size = Size(innerR * 2, innerR * 2),
             style = Stroke(3.dp.toPx()),
         )
     }
 }
 
-/** Blinking dot used in headers and status. */
+/** Blinking dot used in headers. */
 @Composable
 fun BlinkDot(alpha: Float) {
     Canvas(Modifier.size(8.dp)) {
         drawCircle(Cyan.copy(alpha = alpha))
+    }
+}
+
+/** Clickable chamfered button. `selected` fills it brighter. */
+@Composable
+fun HudButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    accent: Color = Cyan,
+) {
+    Box(
+        modifier = modifier
+            .clickable(onClick = onClick)
+            .drawBehind {
+                val cut = 8.dp.toPx()
+                val path = chamfer(size.width, size.height, cut)
+                drawPath(path, accent.copy(alpha = if (selected) 0.25f else 0.07f))
+                drawPath(path, accent.copy(alpha = if (selected) 1f else 0.5f), style = Stroke(width = 1.dp.toPx()))
+            }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = accent.copy(alpha = if (selected) 1f else 0.8f),
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.sp,
+        )
+    }
+}
+
+/** Bottom tab bar made of HudButtons. */
+@Composable
+fun HudTabBar(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        labels.forEachIndexed { i, label ->
+            HudButton(
+                text = label,
+                onClick = { onSelect(i) },
+                modifier = Modifier.weight(1f),
+                selected = i == selected,
+            )
+        }
     }
 }
 
