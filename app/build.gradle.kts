@@ -16,6 +16,17 @@ android {
         versionName = "0.1.0"
     }
 
+    // Fixed debug key, committed on purpose: GitHub runners otherwise sign every
+    // build with a new key, and Android refuses to update an app over a different signature.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildFeatures {
         compose = true
     }
