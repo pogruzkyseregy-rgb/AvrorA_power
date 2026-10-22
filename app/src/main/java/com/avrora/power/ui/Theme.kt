@@ -27,7 +27,7 @@ object Theme {
 
     private val selected = mutableStateOf(0)
     private val selectedStyle = mutableStateOf(VisualStyle.CHAMFER)
-    private val selectedDial = mutableStateOf(DialVariant.TICKS)
+    private val selectedDial = mutableStateOf(DialVariant.HYBRID)
 
     val index: Int get() = selected.value
     val skin: Skin get() = skins[selected.value]
@@ -41,8 +41,8 @@ object Theme {
             val p = prefs(ctx)
             selected.value = p.getInt("skin", 0).coerceIn(0, skins.lastIndex)
             selectedDial.value = runCatching {
-                DialVariant.valueOf(p.getString("dial", "TICKS") ?: "TICKS")
-            }.getOrDefault(DialVariant.TICKS)
+                DialVariant.valueOf(p.getString("dial", "HYBRID") ?: "HYBRID")
+            }.getOrDefault(DialVariant.HYBRID)
             selectedStyle.value = runCatching {
                 VisualStyle.valueOf(p.getString("visual", "CHAMFER") ?: "CHAMFER")
             }.getOrDefault(VisualStyle.CHAMFER)
