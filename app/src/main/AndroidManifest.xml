@@ -5,68 +5,21 @@
 
     <application
         android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="AvrorA_power"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
 
-        <!-- No launcher filter here: the launcher entries below are aliases,
-             and exactly one of them is enabled at a time (chosen in Settings). -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="portrait" />
-
-        <activity-alias
-            android:name=".IconEyes"
-            android:targetActivity=".MainActivity"
-            android:label="AvrorA_power"
-            android:icon="@mipmap/ic_launcher"
-            android:enabled="true"
-            android:exported="true">
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity-alias>
-
-        <activity-alias
-            android:name=".IconAv"
-            android:targetActivity=".MainActivity"
-            android:label="AvrorA_power"
-            android:icon="@mipmap/ic_icon_av"
-            android:enabled="false"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-
-        <activity-alias
-            android:name=".IconHud"
-            android:targetActivity=".MainActivity"
-            android:label="AvrorA_power"
-            android:icon="@mipmap/ic_icon_hud"
-            android:enabled="false"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
-
-        <activity-alias
-            android:name=".IconMono"
-            android:targetActivity=".MainActivity"
-            android:label="AvrorA_power"
-            android:icon="@mipmap/ic_icon_mono"
-            android:enabled="false"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
+        </activity>
 
         <receiver
             android:name=".PowerWidget"

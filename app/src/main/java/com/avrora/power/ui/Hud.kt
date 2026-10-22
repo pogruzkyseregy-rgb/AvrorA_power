@@ -18,19 +18,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.cos
 import kotlin.math.sin
-
 
 /** Rectangle with the top-left and bottom-right corners cut diagonally. */
 private fun chamfer(w: Float, h: Float, cut: Float) = Path().apply {
@@ -67,45 +69,129 @@ fun HudBackground(content: @Composable () -> Unit) {
     ) { content() }
 }
 
-/** Panel with a chamfered outline and bright accents on the cut edges. */
+/** Panel whose frame is drawn in the chosen visual style. */
 @Composable
 fun HudPanel(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    style: VisualStyle = Theme.style,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
         modifier = modifier
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .drawBehind {
-                val cut = 12.dp.toPx()
-                val path = chamfer(size.width, size.height, cut)
-                drawPath(path, Cyan.copy(alpha = 0.07f))
-                drawPath(path, Cyan.copy(alpha = 0.45f), style = Stroke(width = 1.dp.toPx()))
-                val accent = 3.dp.toPx()
-                drawLine(Cyan, Offset(0f, cut), Offset(cut, 0f), strokeWidth = accent)
-                drawLine(Cyan, Offset(size.width, size.height - cut), Offset(size.width - cut, size.height), strokeWidth = accent)
-                drawLine(Cyan, Offset(cut, 0f), Offset(cut + 16.dp.toPx(), 0f), strokeWidth = accent)
-            }
+            .drawBehind { drawPanel(style) }
             .padding(14.dp),
         content = content,
     )
 }
 
-/** Segmented bar: progress in 0..1 lights up segments. */
+private fun DrawScope.drawPanel(style: VisualStyle) {
+    val w = size.width
+    val h = size.height
+    val thin = 1.dp.toPx()
+    when (style) {
+        VisualStyle.CHAMFER -> {
+            val cut = 12.dp.toPx()
+            val path = chamfer(w, h, cut)
+            drawPath(path, Cyan.copy(alpha = 0.07f))
+            drawPath(path, Cyan.copy(alpha = 0.45f), style = Stroke(thin))
+            val accent = 3.dp.toPx()
+            drawLine(Cyan, Offset(0f, cut), Offset(cut, 0f), strokeWidth = accent)
+            drawLine(Cyan, Offset(w, h - cut), Offset(w - cut, h), strokeWidth = accent)
+            drawLine(Cyan, Offset(cut, 0f), Offset(cut + 16.dp.toPx(), 0f), strokeWidth = accent)
+        }
+        VisualStyle.BRACKET -> {
+            val len = 18.dp.toPx()
+            val t = 2.dp.toPx()
+            val c = Cyan.copy(alpha = 0.9f)
+            drawRect(Cyan.copy(alpha = 0.04f))
+            drawLine(c, Offset(0f, 0f), Offset(len, 0f), strokeWidth = t)
+            drawLine(c, Offset(0f, 0f), Offset(0f, len), strokeWidth = t)
+            drawLine(c, Offset(w, 0f), Offset(w - len, 0f), strokeWidth = t)
+            drawLine(c, Offset(w, 0f), Offset(w, len), strokeWidth = t)
+            drawLine(c, Offset(0f, h), Offset(len, h), strokeWidth = t)
+            drawLine(c, Offset(0f, h), Offset(0f, h - len), strokeWidth = t)
+            drawLine(c, Offset(w, h), Offset(w - len, h), strokeWidth = t)
+            drawLine(c, Offset(w, h), Offset(w, h - len), strokeWidth = t)
+        }
+        VisualStyle.GLASS -> {
+            val r = CornerRadius(16.dp.toPx())
+            drawRoundRect(Cyan.copy(alpha = 0.08f), cornerRadius = r)
+            drawRoundRect(Cyan.copy(alpha = 0.35f), cornerRadius = r, style = Stroke(thin))
+        }
+        VisualStyle.STRIPE -> {
+            val cut = 6.dp.toPx()
+            drawPath(chamfer(w, h, cut), Cyan.copy(alpha = 0.05f))
+            drawPath(chamfer(w, h, cut), Cyan.copy(alpha = 0.4f), style = Stroke(thin))
+            val sw = 6.dp.toPx()
+            clipRect(0f, 0f, sw, h) {
+                var x = -h
+                while (x < sw + h) {
+                    drawLine(Cyan.copy(alpha = 0.7f), Offset(x, h), Offset(x + h, 0f), strokeWidth = 2f)
+                    x += 8.dp.toPx()
+                }
+            }
+        }
+        VisualStyle.RING -> {
+            val r = CornerRadius(8.dp.toPx())
+            drawRoundRect(Cyan.copy(alpha = 0.04f), cornerRadius = r)
+            drawRoundRect(Cyan.copy(alpha = 0.3f), cornerRadius = r, style = Stroke(thin))
+            drawCircle(Cyan, radius = 3.dp.toPx(), center = Offset(w - 12.dp.toPx(), 12.dp.toPx()))
+        }
+    }
+}
+
+/** Progress bar drawn in the chosen style: segments, smooth pill, striped, or a ring. */
 @Composable
-fun SegmentBar(progress: Float, segments: Int = 20, modifier: Modifier = Modifier) {
-    val lit = (progress.coerceIn(0f, 1f) * segments).toInt()
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        repeat(segments) { i ->
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(8.dp)
-                    .background(if (i < lit) Cyan else Cyan.copy(alpha = 0.12f)),
+fun SegmentBar(
+    progress: Float,
+    segments: Int = 20,
+    modifier: Modifier = Modifier,
+    style: VisualStyle = Theme.style,
+) {
+    val p = progress.coerceIn(0f, 1f)
+    when (style) {
+        VisualStyle.CHAMFER, VisualStyle.BRACKET -> {
+            val lit = (p * segments).toInt()
+            Row(
+                modifier = modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                repeat(segments) { i ->
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(8.dp)
+                            .background(if (i < lit) Cyan else Cyan.copy(alpha = 0.12f)),
+                    )
+                }
+            }
+        }
+        VisualStyle.GLASS -> Canvas(modifier.fillMaxWidth().height(8.dp)) {
+            val r = CornerRadius(size.height / 2)
+            drawRoundRect(Cyan.copy(alpha = 0.15f), cornerRadius = r)
+            drawRoundRect(Cyan, size = Size(size.width * p, size.height), cornerRadius = r)
+        }
+        VisualStyle.STRIPE -> Canvas(modifier.fillMaxWidth().height(8.dp)) {
+            drawRect(Cyan.copy(alpha = 0.15f))
+            clipRect(0f, 0f, size.width * p, size.height) {
+                var x = 0f
+                while (x < size.width) {
+                    drawLine(Cyan, Offset(x, size.height), Offset(x + size.height, 0f), strokeWidth = 3f)
+                    x += 6.dp.toPx()
+                }
+            }
+        }
+        VisualStyle.RING -> Canvas(modifier.size(44.dp)) {
+            val stroke = 5.dp.toPx()
+            val r = size.minDimension / 2 - stroke
+            val tl = Offset(center.x - r, center.y - r)
+            val sz = Size(r * 2, r * 2)
+            drawArc(Cyan.copy(alpha = 0.15f), -90f, 360f, false, tl, sz, style = Stroke(stroke))
+            drawArc(
+                Cyan, -90f, 360f * p, false, tl, sz,
+                style = Stroke(stroke, cap = StrokeCap.Round),
             )
         }
     }
@@ -137,27 +223,57 @@ fun HudMetric(
     }
 }
 
-/** Dial ticks light up to `level`; inner ring with a spinning arc while charging. */
-fun DrawScope.drawTickRing(level: Float, rotation: Float, charging: Boolean, pulse: Float) {
+/** Charge dial background, drawn in the chosen style. */
+fun DrawScope.drawTickRing(
+    level: Float,
+    rotation: Float,
+    charging: Boolean,
+    pulse: Float,
+    style: VisualStyle,
+) {
     val c = Offset(size.width / 2, size.height / 2)
     val outer = size.minDimension / 2 - 4.dp.toPx()
-    val tickLen = 8.dp.toPx()
+    val innerR = outer - 26.dp.toPx()
+    val box = Offset(c.x - outer, c.y - outer)
+    val boxSize = Size(outer * 2, outer * 2)
 
-    for (i in 0 until 60) {
-        val a = (i * 6f + rotation * 0.2f) * Math.PI.toFloat() / 180f
-        val lit = i.toFloat() / 60f < level
-        val r1 = outer - tickLen
-        val p1 = Offset(c.x + cos(a) * r1, c.y + sin(a) * r1)
-        val p2 = Offset(c.x + cos(a) * outer, c.y + sin(a) * outer)
-        drawLine(
-            color = if (lit) Cyan else Cyan.copy(alpha = 0.18f),
-            start = p1,
-            end = p2,
-            strokeWidth = if (i % 5 == 0) 2.dp.toPx() else 1.dp.toPx(),
-        )
+    when (style) {
+        VisualStyle.CHAMFER, VisualStyle.STRIPE -> {
+            drawTicks(level, rotation, c, outer)
+        }
+        VisualStyle.BRACKET -> {
+            for (i in 0..3) {
+                val lit = level > i / 4f
+                drawArc(
+                    color = if (lit) Cyan else Cyan.copy(alpha = 0.18f),
+                    startAngle = -90f + i * 90f + 8f,
+                    sweepAngle = 74f,
+                    useCenter = false,
+                    topLeft = box,
+                    size = boxSize,
+                    style = Stroke(3.dp.toPx(), cap = StrokeCap.Butt),
+                )
+            }
+        }
+        VisualStyle.GLASS -> {
+            drawCircle(Cyan.copy(alpha = 0.06f), radius = outer, center = c)
+        }
+        VisualStyle.RING -> {
+            for (i in 0 until 24) {
+                val lit = i / 24f < level
+                drawArc(
+                    color = if (lit) Cyan else Cyan.copy(alpha = 0.15f),
+                    startAngle = -90f + i * 15f + 1.5f,
+                    sweepAngle = 12f,
+                    useCenter = false,
+                    topLeft = box,
+                    size = boxSize,
+                    style = Stroke(6.dp.toPx()),
+                )
+            }
+        }
     }
 
-    val innerR = outer - 26.dp.toPx()
     drawCircle(Cyan.copy(alpha = 0.25f), radius = innerR, center = c, style = Stroke(1.dp.toPx()))
 
     if (charging) {
@@ -169,6 +285,23 @@ fun DrawScope.drawTickRing(level: Float, rotation: Float, charging: Boolean, pul
             topLeft = Offset(c.x - innerR, c.y - innerR),
             size = Size(innerR * 2, innerR * 2),
             style = Stroke(3.dp.toPx()),
+        )
+    }
+}
+
+private fun DrawScope.drawTicks(level: Float, rotation: Float, c: Offset, outer: Float) {
+    val tickLen = 8.dp.toPx()
+    for (i in 0 until 60) {
+        val a = (i * 6f + rotation * 0.2f) * Math.PI.toFloat() / 180f
+        val lit = i.toFloat() / 60f < level
+        val r1 = outer - tickLen
+        val p1 = Offset(c.x + cos(a) * r1, c.y + sin(a) * r1)
+        val p2 = Offset(c.x + cos(a) * outer, c.y + sin(a) * outer)
+        drawLine(
+            color = if (lit) Cyan else Cyan.copy(alpha = 0.18f),
+            start = p1,
+            end = p2,
+            strokeWidth = if (i % 5 == 0) 2.dp.toPx() else 1.dp.toPx(),
         )
     }
 }
@@ -210,24 +343,6 @@ fun HudButton(
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 1.sp,
         )
-    }
-}
-
-/** Bottom tab bar made of HudButtons. */
-@Composable
-fun HudTabBar(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        labels.forEachIndexed { i, label ->
-            HudButton(
-                text = label,
-                onClick = { onSelect(i) },
-                modifier = Modifier.weight(1f),
-                selected = i == selected,
-            )
-        }
     }
 }
 

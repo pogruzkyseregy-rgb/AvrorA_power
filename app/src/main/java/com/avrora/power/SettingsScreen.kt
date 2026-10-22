@@ -30,9 +30,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.avrora.power.ui.Cyan
 import com.avrora.power.ui.HudPanel
+import com.avrora.power.ui.SegmentBar
 import com.avrora.power.ui.Theme
+import com.avrora.power.ui.VisualStyle
 
-/** Interface style picker and the app certificate. Opened by tapping the AVRORA_POWER title. */
+/** Visual style, colour scheme and the app certificate. Opened by tapping the AVRORA_POWER title. */
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val ctx = LocalContext.current
@@ -45,7 +47,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     ) {
         HudPanel(modifier = Modifier.fillMaxWidth(), onClick = onBack) {
             Text(
-                "‹  ИНТЕРФЕЙС",
+                "‹  НАСТРОЙКИ",
                 color = Cyan,
                 fontSize = 13.sp,
                 letterSpacing = 2.sp,
@@ -55,7 +57,38 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
 
         Spacer(Modifier.height(16.dp))
-        Text("СТИЛЬ", color = Cyan.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
+        Text("ВИЗУАЛ", color = Cyan.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
+        Spacer(Modifier.height(6.dp))
+
+        VisualStyle.values().forEach { st ->
+            HudPanel(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                style = st,
+                onClick = { Theme.setStyle(ctx, st) },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            st.title,
+                            color = Cyan,
+                            fontSize = 14.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(st.hint, color = Cyan.copy(alpha = 0.5f), fontSize = 10.sp)
+                        Spacer(Modifier.height(8.dp))
+                        SegmentBar(progress = 0.7f, style = st)
+                    }
+                    if (st == Theme.style) {
+                        Spacer(Modifier.width(8.dp))
+                        Text("●", color = Cyan, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+        Text("ЦВЕТ", color = Cyan.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
         Spacer(Modifier.height(6.dp))
 
         Theme.skins.forEachIndexed { i, skin ->
@@ -80,11 +113,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             }
         }
-
-        Spacer(Modifier.height(20.dp))
-        Text("ИКОНКА", color = Cyan.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
-        Spacer(Modifier.height(6.dp))
-        IconPicker()
 
         Spacer(Modifier.height(20.dp))
         Text("СЕРТИФИКАТ", color = Cyan.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)

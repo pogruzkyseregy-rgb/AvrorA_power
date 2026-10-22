@@ -7,6 +7,15 @@ import androidx.compose.ui.graphics.Color
 /** A colour scheme the user can pick in settings. */
 data class Skin(val name: String, val accent: Color, val bg: Color)
 
+/** How panels, bars and the dial are drawn. Each one is taken from a reference style. */
+enum class VisualStyle(val title: String, val hint: String) {
+    CHAMFER("СРЕЗ", "срезанные углы, как у рамок с референса"),
+    BRACKET("СКОБКИ", "угловые скобки, как в прицеле"),
+    GLASS("СТЕКЛО", "скруглённые плашки и мягкое свечение"),
+    STRIPE("ПОЛОСЫ", "диагональная штриховка на шкалах"),
+    RING("КОЛЬЦА", "кольцевые шкалы из сегментов"),
+}
+
 object Theme {
     val skins = listOf(
         Skin("CYAN", Color(0xFF00E5FF), Color(0xFF03060A)),
@@ -17,22 +26,32 @@ object Theme {
     )
 
     private val selected = mutableStateOf(0)
+    private val selectedStyle = mutableStateOf(VisualStyle.CHAMFER)
 
     val index: Int get() = selected.value
     val skin: Skin get() = skins[selected.value]
+    val style: VisualStyle get() = selectedStyle.value
+
+    private fun prefs(ctx: Context) = ctx.getSharedPreferences("avrora", Context.MODE_PRIVATE)
 
     fun load(ctx: Context) {
-        val i = runCatching {
-            ctx.getSharedPreferences("avrora", Context.MODE_PRIVATE).getInt("skin", 0)
-        }.getOrDefault(0)
-        selected.value = i.coerceIn(0, skins.lastIndex)
+        runCatching {
+            val p = prefs(ctx)
+            selected.value = p.getInt("skin", 0).coerceIn(0, skins.lastIndex)
+            selectedStyle.value = runCatching {
+                VisualStyle.valueOf(p.getString("visual", "CHAMFER") ?: "CHAMFER")
+            }.getOrDefault(VisualStyle.CHAMFER)
+        }
     }
 
     fun set(ctx: Context, i: Int) {
         selected.value = i
-        runCatching {
-            ctx.getSharedPreferences("avrora", Context.MODE_PRIVATE).edit().putInt("skin", i).apply()
-        }
+        runCatching { prefs(ctx).edit().putInt("skin", i).apply() }
+    }
+
+    fun setStyle(ctx: Context, s: VisualStyle) {
+        selectedStyle.value = s
+        runCatching { prefs(ctx).edit().putString("visual", s.name).apply() }
     }
 }
 

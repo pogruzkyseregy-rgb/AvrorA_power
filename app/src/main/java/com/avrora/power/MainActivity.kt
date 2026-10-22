@@ -184,6 +184,7 @@ fun ChargeDial(s: PowerState, onClick: () -> Unit) {
                     rotation = rotation,
                     charging = s.isCharging,
                     pulse = pulse,
+                    style = Theme.style,
                 )
                 val stroke = 10.dp.toPx()
                 val r = size.minDimension / 2 - 44.dp.toPx()
