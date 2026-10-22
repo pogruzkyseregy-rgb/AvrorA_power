@@ -31,8 +31,6 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.cos
 import kotlin.math.sin
 
-val Cyan = Color(0xFF00E5FF)
-val Bg = Color(0xFF03060A)
 
 /** Rectangle with the top-left and bottom-right corners cut diagonally. */
 private fun chamfer(w: Float, h: Float, cut: Float) = Path().apply {
@@ -73,10 +71,12 @@ fun HudBackground(content: @Composable () -> Unit) {
 @Composable
 fun HudPanel(
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
         modifier = modifier
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .drawBehind {
                 val cut = 12.dp.toPx()
                 val path = chamfer(size.width, size.height, cut)
@@ -113,8 +113,14 @@ fun SegmentBar(progress: Float, segments: Int = 20, modifier: Modifier = Modifie
 
 /** Label + value cell used in the metrics grid. */
 @Composable
-fun HudMetric(label: String, value: String, bar: Float? = null, modifier: Modifier = Modifier) {
-    HudPanel(modifier = modifier) {
+fun HudMetric(
+    label: String,
+    value: String,
+    bar: Float? = null,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+) {
+    HudPanel(modifier = modifier, onClick = onClick) {
         Text(label, color = Cyan.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
         Spacer8()
         Text(

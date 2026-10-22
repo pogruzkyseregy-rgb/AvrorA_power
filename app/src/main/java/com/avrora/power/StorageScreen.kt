@@ -9,12 +9,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,14 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.avrora.power.ui.Bg
 import com.avrora.power.ui.Cyan
 import com.avrora.power.ui.HudButton
 import com.avrora.power.ui.HudPanel
-import com.avrora.power.ui.SegmentBar
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -43,7 +38,7 @@ import kotlinx.coroutines.withContext
 /** One line in the storage lists. */
 data class Entry(val name: String, val path: String, val bytes: Long, val isDir: Boolean)
 
-/** Storage helpers. Work only with files the user can see; the app never touches system folders. */
+/** Storage helpers. The app never touches system folders (Android/). */
 object StorageTools {
     fun root(): File = Environment.getExternalStorageDirectory()
 
@@ -60,7 +55,7 @@ object StorageTools {
             .map { Entry(it.name, it.absolutePath, sizeOf(it), it.isDirectory) }
             .sortedByDescending { it.bytes }
 
-    /** Files of at least `minBytes`, skipping Android/ (system-managed). */
+    /** Files of at least `minBytes`, skipping Android/. */
     fun bigFiles(minBytes: Long = 50L * 1024 * 1024, limit: Int = 50): List<Entry> =
         root().walkTopDown()
             .onEnter { it.name != "Android" }
@@ -77,8 +72,9 @@ fun fmtBytes(b: Long): String = when {
     else -> "%.0f KB".format(b / 1024.0)
 }
 
+/** Scan, cache cleanup and large-file deletion. Shown inside the storage chart screen. */
 @Composable
-fun StorageScreen(state: PowerState) {
+fun StorageSection() {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -127,51 +123,16 @@ fun StorageScreen(state: PowerState) {
         status = "Кэш приложения очищен"
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 8.dp),
-    ) {
-        HudPanel(modifier = Modifier.fillMaxWidth()) {
-            Text("ОЗУ", color = Cyan.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "${state.ramUsedMb} / ${state.ramTotalMb} MB",
-                color = Cyan,
-                fontSize = 16.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(6.dp))
-            SegmentBar(if (state.ramTotalMb > 0) state.ramUsedMb.toFloat() / state.ramTotalMb else 0f)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "Android не даёт смотреть и закрывать память чужих приложений, поэтому показана общая.",
-                color = Cyan.copy(alpha = 0.5f),
-                fontSize = 10.sp,
-            )
-        }
-
-        Spacer(Modifier.height(10.dp))
-
-        HudPanel(modifier = Modifier.fillMaxWidth()) {
-            Text("ХРАНИЛИЩЕ", color = Cyan.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "%.1f / %.1f GB".format(state.storageUsedGb, state.storageTotalGb),
-                color = Cyan,
-                fontSize = 16.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(6.dp))
-            SegmentBar(if (state.storageTotalGb > 0) state.storageUsedGb / state.storageTotalGb else 0f)
-        }
-
-        Spacer(Modifier.height(14.dp))
-
+    Column(modifier = Modifier.fillMaxWidth()) {
         if (!access) {
+            HudPanel(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "Для сканирования нужен доступ ко всем файлам. Выдай его в настройках и вернись сюда.",
+                    color = Cyan.copy(alpha = 0.7f),
+                    fontSize = 11.sp,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
             HudButton(
                 text = "ДАТЬ ДОСТУП К ФАЙЛАМ",
                 onClick = {
@@ -245,8 +206,6 @@ fun StorageScreen(state: PowerState) {
                 )
             }
         }
-
-        Spacer(Modifier.height(24.dp))
     }
 
     pending?.let { e ->
