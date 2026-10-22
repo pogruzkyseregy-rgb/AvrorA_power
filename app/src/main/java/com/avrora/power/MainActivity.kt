@@ -48,6 +48,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Theme.load(this)
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                this, android.Manifest.permission.POST_NOTIFICATIONS,
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            androidx.core.app.ActivityCompat.requestPermissions(
+                this, arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1,
+            )
+        }
+        androidx.core.content.ContextCompat.startForegroundService(
+            this, android.content.Intent(this, RecorderService::class.java),
+        )
         setContent { PowerScreen() }
     }
 }
@@ -69,10 +81,11 @@ fun PowerScreen() {
     }
 
     LaunchedEffect(state) { PowerWidget.refreshAll(ctx) }
+    // The background service writes history; the screen just re-reads it.
     LaunchedEffect(Unit) {
         while (true) {
-            History.add(ctx, PowerReader.snapshot(ctx))
-            delay(History.STEP_MS)
+            History.reload(ctx)
+            delay(10_000L)
         }
     }
     BackHandler(enabled = screen != "home") { screen = "home" }
@@ -285,6 +298,12 @@ fun Metrics(s: PowerState, onOpen: (String) -> Unit) {
         Cell("ТЕМПЕРАТУРА", "%.1f °C".format(s.temperatureC), (s.temperatureC - 20f) / 40f, "TEMP"),
         Cell("ИСТОЧНИК", sourceText(s.source), null, null),
         Cell("ДО ПОЛНОЙ", s.minutesToFull?.let { "${it / 60}ч ${it % 60}м" } ?: "—", null, null),
+        Cell(
+            "ДО РАЗРЯДА",
+            if (s.isCharging) "—" else (Forecast.minutesToEmpty(History.samples)?.let { "${it / 60}ч ${it % 60}м" } ?: "—"),
+            null,
+            "LEVEL",
+        ),
         Cell("ЗДОРОВЬЕ", s.healthText, null, null),
         Cell("ОЗУ", "${s.ramUsedMb} / ${s.ramTotalMb} MB", ramPct, "RAM"),
         Cell("ПАМЯТЬ", "%.0f / %.0f GB".format(s.storageUsedGb, s.storageTotalGb), storPct, "STORAGE"),
