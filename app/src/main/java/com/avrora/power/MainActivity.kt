@@ -59,6 +59,9 @@ fun PowerScreen() {
     val state by remember(ctx) { PowerReader.observe(ctx) }
         .collectAsState(initial = PowerReader.snapshot(ctx))
 
+    // Keep the home-screen widget in step with what the app shows
+    LaunchedEffect(state) { PowerWidget.refreshAll(ctx) }
+
     HudBackground {
         Column(
             modifier = Modifier
