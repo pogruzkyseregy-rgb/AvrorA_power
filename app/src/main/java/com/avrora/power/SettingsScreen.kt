@@ -191,7 +191,7 @@ fun Certificate(ctx: Context) {
         }
         Spacer(Modifier.height(12.dp))
         CertRow("ВЕРСИЯ", version)
-        CertRow("АВТОР", "pogruzkyseregy-rgb")
+        CertRow("АВТОР", "Adonis_Saito")
         CertRow("УСТРОЙСТВО", "${Build.MANUFACTURER} ${Build.MODEL}")
         CertRow("ANDROID", Build.VERSION.RELEASE)
         CertRow("№", "AVR-$number")
