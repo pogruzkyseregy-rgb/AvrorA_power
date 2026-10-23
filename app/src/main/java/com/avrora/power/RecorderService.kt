@@ -29,8 +29,16 @@ class RecorderService : Service() {
         }
     }
 
+    // Fires the plug animation even when the app is closed.
+    private val powerReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, intent: Intent) {
+            if (intent.action == Intent.ACTION_POWER_CONNECTED) PlugFlash.play(c)
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
+        registerReceiver(powerReceiver, IntentFilter(Intent.ACTION_POWER_CONNECTED))
         Alerts.ensureChannels(this)
         // Android 14+ requires the foreground service type to be passed explicitly.
         androidx.core.app.ServiceCompat.startForeground(
@@ -57,6 +65,7 @@ class RecorderService : Service() {
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(batteryReceiver) }
+        runCatching { unregisterReceiver(powerReceiver) }
         scope.cancel()
         super.onDestroy()
     }

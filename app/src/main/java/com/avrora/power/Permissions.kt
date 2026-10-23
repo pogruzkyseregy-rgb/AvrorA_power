@@ -72,14 +72,27 @@ fun PlugAnimationToggle() {
     }
 }
 
-private data class PermState(val notifications: Boolean, val files: Boolean, val battery: Boolean)
+private data class PermState(
+    val notifications: Boolean,
+    val files: Boolean,
+    val battery: Boolean,
+    val overlay: Boolean,
+    val fullScreen: Boolean,
+)
 
 private fun readPerms(ctx: Context): PermState {
     val notif = NotificationManagerCompat.from(ctx).areNotificationsEnabled()
     val files = StorageTools.hasAccess()
     val pm = ctx.getSystemService(PowerManager::class.java)
     val battery = pm?.isIgnoringBatteryOptimizations(ctx.packageName) ?: false
-    return PermState(notif, files, battery)
+    val overlay = Settings.canDrawOverlays(ctx)
+    // Full-screen intents are a separate switch from Android 14 on; before that they are always allowed.
+    val fullScreen = if (Build.VERSION.SDK_INT >= 34) {
+        ctx.getSystemService(android.app.NotificationManager::class.java)?.canUseFullScreenIntent() ?: false
+    } else {
+        true
+    }
+    return PermState(notif, files, battery, overlay, fullScreen)
 }
 
 private fun openIntent(ctx: Context, action: String, withPackage: Boolean = false) {
@@ -135,6 +148,22 @@ fun PermissionsSection() {
         ok = perms.battery,
     ) {
         openIntent(ctx, Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, withPackage = true)
+    }
+
+    PermRow(
+        title = "ПОВЕРХ ДРУГИХ ПРИЛОЖЕНИЙ",
+        hint = "анимация подключения поверх открытого приложения",
+        ok = perms.overlay,
+    ) {
+        openIntent(ctx, Settings.ACTION_MANAGE_OVERLAY_PERMISSION, withPackage = true)
+    }
+
+    PermRow(
+        title = "ЭКРАН БЛОКИРОВКИ",
+        hint = "показ анимации, когда экран выключен",
+        ok = perms.fullScreen,
+    ) {
+        openIntent(ctx, "android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT", withPackage = true)
     }
 }
 

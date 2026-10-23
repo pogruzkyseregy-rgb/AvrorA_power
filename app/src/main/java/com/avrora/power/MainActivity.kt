@@ -66,6 +66,16 @@ class MainActivity : ComponentActivity() {
         }
         setContent { PowerScreen() }
     }
+
+    override fun onResume() {
+        super.onResume()
+        AppState.visible = true
+    }
+
+    override fun onPause() {
+        AppState.visible = false
+        super.onPause()
+    }
 }
 
 /** Screens: "home", "settings", or "chart:<METRIC>". */
