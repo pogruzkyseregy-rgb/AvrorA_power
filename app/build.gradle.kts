@@ -12,8 +12,8 @@ android {
         applicationId = "com.avrora.power"
         minSdk = 30
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     // Fixed debug key, committed on purpose: GitHub runners otherwise sign every
@@ -25,6 +25,17 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // Release key comes from GitHub secrets and is never committed. Without them,
+        // the release build falls back to the debug key so local and CI builds keep working.
+        create("release") {
+            val path = System.getenv("RELEASE_KEYSTORE_PATH")
+            if (path != null) {
+                storeFile = file(path)
+                storePassword = System.getenv("RELEASE_STORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildFeatures {
@@ -34,6 +45,11 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = if (System.getenv("RELEASE_KEYSTORE_PATH") != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
