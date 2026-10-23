@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -75,12 +76,18 @@ fun PowerScreen() {
         .collectAsState(initial = PowerReader.snapshot(ctx))
     var screen by rememberSaveable { mutableStateOf("home") }
 
-    // Bumped every time the charger connects; each bump restarts the plug animation.
-    var burst by remember { mutableIntStateOf(0) }
-    var lastCharging by remember { mutableStateOf(state.isCharging) }
+    // Plug animation: 0 → 1 runs once on each connection. 1 means idle.
+    val plug = remember { Animatable(1f) }
+    var wasCharging by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(state.isCharging) {
-        if (state.isCharging && !lastCharging) burst++
-        lastCharging = state.isCharging
+        val prev = wasCharging
+        wasCharging = state.isCharging
+        if (!state.isCharging) {
+            plug.snapTo(1f)
+        } else if (prev == false && Theme.plugAnim) {
+            plug.snapTo(0f)
+            plug.animateTo(1f, tween(1800, easing = FastOutSlowInEasing))
+        }
     }
 
     LaunchedEffect(state) { PowerWidget.refreshAll(ctx) }
@@ -98,7 +105,7 @@ fun PowerScreen() {
             when {
                 screen == "home" -> ChargePage(
                     state = state,
-                    burst = burst,
+                    plug = plug,
                     onOpen = { key -> screen = "chart:$key" },
                     onTitle = { screen = "settings" },
                 )
@@ -115,7 +122,12 @@ fun PowerScreen() {
 }
 
 @Composable
-fun ChargePage(state: PowerState, burst: Int, onOpen: (String) -> Unit, onTitle: () -> Unit) {
+fun ChargePage(
+    state: PowerState,
+    plug: Animatable<Float, AnimationVector1D>,
+    onOpen: (String) -> Unit,
+    onTitle: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -125,7 +137,7 @@ fun ChargePage(state: PowerState, burst: Int, onOpen: (String) -> Unit, onTitle:
     ) {
         Header(state, onTitle)
         Spacer(Modifier.height(20.dp))
-        ChargeDial(state, burst, onClick = { onOpen("LEVEL") })
+        ChargeDial(state, plug, onClick = { onOpen("LEVEL") })
         Spacer(Modifier.height(14.dp))
         StatusBanner(state)
         Spacer(Modifier.height(18.dp))
@@ -181,7 +193,7 @@ fun Header(s: PowerState, onTitle: () -> Unit) {
 }
 
 @Composable
-fun ChargeDial(s: PowerState, burst: Int, onClick: () -> Unit) {
+fun ChargeDial(s: PowerState, plug: Animatable<Float, AnimationVector1D>, onClick: () -> Unit) {
     val transition = rememberInfiniteTransition(label = "dial")
     val rotation by transition.animateFloat(
         initialValue = 0f, targetValue = 360f,
@@ -214,9 +226,7 @@ fun ChargeDial(s: PowerState, burst: Int, onClick: () -> Unit) {
             },
         contentAlignment = Alignment.Center,
     ) {
-        if (burst > 0) {
-            key(burst) { PlugBurst() }
-        }
+        PlugBurst(plug)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 "${s.level}",
@@ -241,32 +251,28 @@ fun ChargeDial(s: PowerState, burst: Int, onClick: () -> Unit) {
 }
 
 /**
- * One run of the plug-in animation: a glow and two expanding rings, about 1.8 s.
- * Created fresh (via key) on every connection, so it always starts from zero.
- * The value is read during composition, so each frame redraws the canvas.
+ * Plug-in animation: a glow and three expanding rings over about 1.8 s.
+ * Driven by [plug], which is started from PowerScreen on each connection.
+ * The value is read inside the draw block, so only drawing is repeated.
  */
 @Composable
-fun PlugBurst() {
-    val anim = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        anim.animateTo(1f, tween(1800, easing = FastOutSlowInEasing))
-    }
-    val p = anim.value
-    if (p >= 1f) return
-
+fun PlugBurst(plug: Animatable<Float, AnimationVector1D>) {
+    if (!Theme.plugAnim) return
     Canvas(Modifier.size(280.dp)) {
+        val p = plug.value
+        if (p >= 1f) return@Canvas
         val base = size.minDimension / 2
         drawCircle(
-            color = Cyan.copy(alpha = (1f - p) * 0.25f),
+            color = Cyan.copy(alpha = (1f - p) * 0.3f),
             radius = base * 0.9f,
         )
         for (k in 0..2) {
             val q = (p - k * 0.2f).coerceIn(0f, 1f)
             if (q > 0f) {
                 drawCircle(
-                    color = Cyan.copy(alpha = (1f - q) * 0.9f),
+                    color = Cyan.copy(alpha = (1f - q) * 0.95f),
                     radius = base * (0.4f + q * 0.6f),
-                    style = Stroke(3.dp.toPx()),
+                    style = Stroke(4.dp.toPx()),
                 )
             }
         }

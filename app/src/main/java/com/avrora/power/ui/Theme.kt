@@ -28,17 +28,20 @@ object Theme {
     private val selected = mutableStateOf(0)
     private val selectedStyle = mutableStateOf(VisualStyle.CHAMFER)
     private val selectedDial = mutableStateOf(DialVariant.HYBRID)
+    private val plugOn = mutableStateOf(true)
 
     val index: Int get() = selected.value
     val skin: Skin get() = skins[selected.value]
     val style: VisualStyle get() = selectedStyle.value
     val dial: DialVariant get() = selectedDial.value
+    val plugAnim: Boolean get() = plugOn.value
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("avrora", Context.MODE_PRIVATE)
 
     fun load(ctx: Context) {
         runCatching {
             val p = prefs(ctx)
+            plugOn.value = p.getBoolean("plugAnim", true)
             selected.value = p.getInt("skin", 0).coerceIn(0, skins.lastIndex)
             selectedDial.value = runCatching {
                 DialVariant.valueOf(p.getString("dial", "HYBRID") ?: "HYBRID")
@@ -57,6 +60,11 @@ object Theme {
     fun setDial(ctx: Context, v: DialVariant) {
         selectedDial.value = v
         runCatching { prefs(ctx).edit().putString("dial", v.name).apply() }
+    }
+
+    fun setPlugAnim(ctx: Context, on: Boolean) {
+        plugOn.value = on
+        runCatching { prefs(ctx).edit().putBoolean("plugAnim", on).apply() }
     }
 
     fun setStyle(ctx: Context, s: VisualStyle) {
