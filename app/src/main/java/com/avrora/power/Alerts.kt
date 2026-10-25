@@ -75,6 +75,9 @@ object Alerts {
             .apply()
     }
 
+    /** Posts a notification on the alerts channel. Used by other monitors (e.g. white lists). */
+    fun post(ctx: Context, id: Int, title: String, text: String) = notify(ctx, id, title, text)
+
     private fun notify(ctx: Context, id: Int, title: String, text: String) {
         if (android.os.Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) !=

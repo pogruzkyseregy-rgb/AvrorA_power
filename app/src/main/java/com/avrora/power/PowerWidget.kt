@@ -33,6 +33,12 @@ class PowerWidget : AppWidgetProvider() {
                     },
                 )
                 setTextViewText(R.id.w_temp, "%.1f °C".format(s.temperatureC))
+                // Signal bars and ping; red while white-list mode is on.
+                setTextViewText(R.id.w_net, netValue())
+                setTextColor(
+                    R.id.w_net,
+                    if (SignalMonitor.whitelist.value) 0xFFFF3B5C.toInt() else 0x9900E5FF.toInt(),
+                )
                 setOnClickPendingIntent(R.id.w_root, openApp)
             }
             manager.updateAppWidget(id, views)

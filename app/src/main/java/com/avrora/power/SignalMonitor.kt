@@ -37,12 +37,20 @@ object SignalMonitor {
 
     private var callback: Any? = null
 
-    private val hosts = listOf(
-        "https://www.google.com/generate_204",
+    // Foreign services: normally open, closed by a white list.
+    private val foreign = listOf(
+        "https://connectivitycheck.gstatic.com/generate_204",
+        "https://cp.cloudflare.com/generate_204",
+        "https://captive.apple.com/hotspot-detect.html",
+        "https://www.msftconnecttest.com/connecttest.txt",
+    )
+
+    // Domestic sites: the ones a white list keeps open.
+    private val domestic = listOf(
         "https://ya.ru",
         "https://vk.com",
-        "https://www.youtube.com",
-        "https://telegram.org",
+        "https://www.gosuslugi.ru",
+        "https://mail.ru",
     )
 
     fun hasPhonePermission(ctx: Context): Boolean =
@@ -87,9 +95,17 @@ object SignalMonitor {
         callback = null
     }
 
+    /** Result of one round of checks. */
+    enum class NetMode { UNKNOWN, OPEN, WHITELIST }
+
     /**
-     * One check. Only the mobile network is checked. If it has a signal but almost none of
-     * the usual sites answer, white-list mode is flagged. This is a heuristic, not an exact test.
+     * One check round over the mobile network.
+     * Foreign services that are open in normal mode fail in white-list mode.
+     * Domestic sites are the ones a white list keeps. So:
+     * - foreign answers → open;
+     * - no foreign, but some domestic answer → white-list;
+     * - anything else (no signal, no connection) → no judgement this round.
+     * A change is confirmed only after two equal rounds in a row, so one glitch does not flip it.
      */
     suspend fun probe(ctx: Context) {
         val cm = ctx.getSystemService(ConnectivityManager::class.java)
@@ -100,18 +116,53 @@ object SignalMonitor {
                 caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
                 caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         }
-        if (cellular == null) {
-            whitelist.value = false
+        if (cellular == null || level.intValue <= 0) {
             pingMs.intValue = -1
+            observe(ctx, NetMode.UNKNOWN)
             return
         }
-        val times = coroutineScope {
-            hosts.map { url -> async(Dispatchers.IO) { timedRequest(cellular, url) } }.awaitAll()
-        }.filterNotNull()
+
+        val results = coroutineScope {
+            (foreign + domestic).map { url -> async(Dispatchers.IO) { url to timedRequest(cellular, url) } }
+                .awaitAll()
+        }
+        val answered = results.mapNotNull { it.second }
         // Ping = average answer time of the sites that did respond.
-        pingMs.intValue = if (times.isEmpty()) -1 else times.average().toInt()
-        // Without a signal, "nothing opens" just means no connection, so it does not count.
-        whitelist.value = level.intValue > 0 && times.size <= 1
+        pingMs.intValue = if (answered.isEmpty()) -1 else answered.average().toInt()
+
+        val foreignOk = results.count { it.first in foreign && it.second != null }
+        val domesticOk = results.count { it.first in domestic && it.second != null }
+        val mode = when {
+            foreignOk >= 2 -> NetMode.OPEN
+            foreignOk == 0 && domesticOk >= 1 -> NetMode.WHITELIST
+            else -> NetMode.UNKNOWN
+        }
+        observe(ctx, mode)
+    }
+
+    private var candidate = NetMode.UNKNOWN
+    private var streak = 0
+    private var confirmed = NetMode.UNKNOWN
+
+    private fun observe(ctx: Context, seen: NetMode) {
+        if (seen == NetMode.UNKNOWN) {
+            streak = 0
+            return
+        }
+        if (seen == candidate) streak++ else { candidate = seen; streak = 1 }
+        if (streak < 2 || seen == confirmed) return
+
+        val wasKnown = confirmed != NetMode.UNKNOWN
+        confirmed = seen
+        whitelist.value = seen == NetMode.WHITELIST
+        // The first judgement after start is not announced: it only sets the starting state.
+        if (wasKnown) {
+            if (seen == NetMode.WHITELIST) {
+                Alerts.post(ctx, 6, "Белые списки включены", "Мобильный интернет ограничен списком сайтов.")
+            } else {
+                Alerts.post(ctx, 6, "Белые списки отключены", "Обычный доступ к интернету восстановлен.")
+            }
+        }
     }
 
     // Bound to the cellular network, so the request goes out there even when a VPN is active.

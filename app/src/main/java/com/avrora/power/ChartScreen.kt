@@ -41,7 +41,10 @@ fun fmtValue(m: Metric, v: Float): String = when (m) {
 fun ChartScreen(metric: Metric, state: PowerState, onBack: () -> Unit) {
     val samples = History.samples
     // Points with a value, plus whether each one was taken during white-list mode.
-    val points = samples.mapNotNull { s -> s.value(metric)?.let { it to s.wl } }
+    // Long history is thinned to about 1500 points so the chart stays smooth.
+    val step = samples.size / 1500 + 1
+    val points = samples.filterIndexed { i, _ -> i % step == 0 }
+        .mapNotNull { s -> s.value(metric)?.let { it to s.wl } }
     val values = points.map { it.first }
     val flags = points.map { it.second }
     val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }

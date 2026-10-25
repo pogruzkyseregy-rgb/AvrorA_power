@@ -73,7 +73,11 @@ fun Metric.live(s: PowerState): Float? = Sample.from(s).value(this)
  */
 object History {
     const val STEP_MS = 30_000L
-    private const val MAX = 2000
+    /** History is kept for two weeks, then old rows are dropped. */
+    private const val KEEP_MS = 14L * 24 * 3600_000L
+    /** Most rows loaded into memory for the charts and the forecast. */
+    private const val UI_MAX = 40_000
+    private var lastTrim = 0L
 
     val samples = mutableStateListOf<Sample>()
 
@@ -82,10 +86,18 @@ object History {
     @Synchronized
     fun append(ctx: Context, s: PowerState) {
         val f = file(ctx)
+        val now = System.currentTimeMillis()
         runCatching {
-            if (f.exists() && f.length() > 300_000) {
-                val keep = f.readLines().takeLast(MAX)
-                f.writeText(keep.joinToString("\n", postfix = "\n"))
+            // Drop rows older than the retention period, at most once an hour.
+            if (now - lastTrim > 3600_000L) {
+                lastTrim = now
+                val cutoff = now - KEEP_MS
+                if (f.exists()) {
+                    val keep = f.readLines().filter { l ->
+                        (l.substringBefore(',').toLongOrNull() ?: 0L) >= cutoff
+                    }
+                    f.writeText(keep.joinToString("\n", postfix = if (keep.isEmpty()) "" else "\n"))
+                }
             }
             f.appendText(line(Sample.from(s)) + "\n")
         }
@@ -94,7 +106,7 @@ object History {
     @Synchronized
     fun reload(ctx: Context) {
         val loaded = runCatching {
-            file(ctx).readLines().takeLast(MAX).mapNotNull { parse(it) }
+            file(ctx).readLines().takeLast(UI_MAX).mapNotNull { parse(it) }
         }.getOrDefault(emptyList())
         samples.clear()
         samples.addAll(loaded)

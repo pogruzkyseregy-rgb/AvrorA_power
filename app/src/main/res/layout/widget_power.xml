@@ -37,4 +37,13 @@
         android:textColor="#9900E5FF"
         android:textSize="11sp" />
 
+    <TextView
+        android:id="@+id/w_net"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:text="-- · -- мс"
+        android:textColor="#9900E5FF"
+        android:textSize="11sp" />
+
 </LinearLayout>

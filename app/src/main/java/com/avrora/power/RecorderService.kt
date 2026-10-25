@@ -61,6 +61,8 @@ class RecorderService : Service() {
                 val s = PowerReader.snapshot(this@RecorderService)
                 History.append(this@RecorderService, s)
                 Alerts.check(this@RecorderService, s)
+                // Keeps the widget's ping and signal fresh even when the app is closed.
+                PowerWidget.refreshAll(this@RecorderService)
                 delay(History.STEP_MS)
             }
         }
