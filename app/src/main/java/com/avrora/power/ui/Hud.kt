@@ -16,12 +16,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
-import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 import androidx.compose.ui.Alignment
@@ -222,46 +221,71 @@ fun HudMetric(
     alert: Boolean = false,
 ) {
     val tint = if (alert) AlertRed else Cyan
-    val jitter = remember { mutableFloatStateOf(0f) }
-    val flicker = remember { mutableFloatStateOf(1f) }
-    LaunchedEffect(alert) {
-        if (!alert) {
-            jitter.floatValue = 0f
-            flicker.floatValue = 1f
-            return@LaunchedEffect
-        }
-        while (true) {
-            jitter.floatValue = Random.nextFloat() * 6f - 3f
-            flicker.floatValue = if (Random.nextFloat() < 0.25f) 0.3f else 1f
-            delay(Random.nextLong(60, 180))
-        }
-    }
 
     HudPanel(modifier = modifier, onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (signal != null) {
-                SignalIcon(
-                    bars = signal,
-                    color = tint,
-                    modifier = Modifier.offset(x = jitter.floatValue.dp).alpha(flicker.floatValue),
-                )
+                SignalIcon(bars = signal, color = tint)
                 Spacer(Modifier.width(6.dp))
             }
             Text(label, color = tint.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
         }
         Spacer8()
-        Text(
-            value,
-            color = tint.copy(alpha = flicker.floatValue),
-            fontSize = 17.sp,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.offset(x = jitter.floatValue.dp),
-        )
+        GlitchText(value, tint, enabled = alert)
         if (bar != null) {
             Spacer8()
             SegmentBar(bar)
         }
+    }
+}
+
+/**
+ * Value text with a digital glitch. While [enabled], it now and then fires a short burst:
+ * the digits scramble and a red copy jumps sideways. Otherwise it is plain text.
+ */
+@Composable
+fun GlitchText(text: String, tint: Color, enabled: Boolean) {
+    val shown = remember { mutableStateOf(text) }
+    val bursting = remember { mutableStateOf(false) }
+    val shift = remember { mutableStateOf(0f) }
+
+    LaunchedEffect(text, enabled) {
+        shown.value = text
+        bursting.value = false
+        if (!enabled) return@LaunchedEffect
+        while (true) {
+            delay(Random.nextLong(500, 1400))
+            repeat(Random.nextInt(2, 5)) {
+                shown.value = text.map { c ->
+                    if (c.isDigit() && Random.nextFloat() < 0.4f) '0' + Random.nextInt(10) else c
+                }.joinToString("")
+                shift.value = Random.nextFloat() * 10f - 5f
+                bursting.value = true
+                delay(Random.nextLong(40, 90))
+            }
+            bursting.value = false
+            shown.value = text
+        }
+    }
+
+    Box {
+        if (bursting.value) {
+            Text(
+                shown.value,
+                color = AlertRed.copy(alpha = 0.85f),
+                fontSize = 17.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.offset(x = shift.value.dp),
+            )
+        }
+        Text(
+            if (bursting.value) shown.value else text,
+            color = tint,
+            fontSize = 17.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 

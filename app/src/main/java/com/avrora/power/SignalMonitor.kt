@@ -32,6 +32,9 @@ object SignalMonitor {
     /** True while the mobile network looks limited to a white list. */
     val whitelist = mutableStateOf(false)
 
+    /** Ping in ms to the reachable sites (average), or -1 when nothing answered. */
+    val pingMs = mutableIntStateOf(-1)
+
     private var callback: Any? = null
 
     private val hosts = listOf(
@@ -99,17 +102,22 @@ object SignalMonitor {
         }
         if (cellular == null) {
             whitelist.value = false
+            pingMs.intValue = -1
             return
         }
-        val reachable = coroutineScope {
-            hosts.map { url -> async(Dispatchers.IO) { reachable(cellular, url) } }.awaitAll().count { it }
-        }
+        val times = coroutineScope {
+            hosts.map { url -> async(Dispatchers.IO) { timedRequest(cellular, url) } }.awaitAll()
+        }.filterNotNull()
+        // Ping = average answer time of the sites that did respond.
+        pingMs.intValue = if (times.isEmpty()) -1 else times.average().toInt()
         // Without a signal, "nothing opens" just means no connection, so it does not count.
-        whitelist.value = level.intValue > 0 && reachable <= 1
+        whitelist.value = level.intValue > 0 && times.size <= 1
     }
 
     // Bound to the cellular network, so the request goes out there even when a VPN is active.
-    private fun reachable(network: Network, url: String): Boolean = runCatching {
+    // Returns the answer time in ms, or null if the site did not answer.
+    private fun timedRequest(network: Network, url: String): Long? = runCatching {
+        val t0 = System.nanoTime()
         val c = network.openConnection(URL(url)) as HttpURLConnection
         c.connectTimeout = 4000
         c.readTimeout = 4000
@@ -117,6 +125,6 @@ object SignalMonitor {
         c.instanceFollowRedirects = false
         val code = c.responseCode
         c.disconnect()
-        code > 0
-    }.getOrDefault(false)
+        if (code > 0) (System.nanoTime() - t0) / 1_000_000 else null
+    }.getOrNull()
 }

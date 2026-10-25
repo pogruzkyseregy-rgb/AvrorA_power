@@ -30,6 +30,7 @@ import java.util.Locale
 
 fun fmtValue(m: Metric, v: Float): String = when (m) {
     Metric.LEVEL, Metric.RAM, Metric.STORAGE, Metric.SIGNAL -> "%.0f%%".format(v)
+    Metric.PING -> "%.0f мс".format(v)
     Metric.VOLTAGE -> "%.2f V".format(v)
     Metric.CURRENT -> "%.0f mA".format(v)
     Metric.TEMP -> "%.1f °C".format(v)
@@ -81,7 +82,7 @@ fun ChartScreen(metric: Metric, state: PowerState, onBack: () -> Unit) {
                 fontSize = 10.sp,
                 letterSpacing = 2.sp,
             )
-            if (metric == Metric.SIGNAL) {
+            if (metric == Metric.SIGNAL || metric == Metric.PING) {
                 Text(
                     "красным — время в режиме белых списков",
                     color = AlertRed.copy(alpha = 0.8f),
@@ -115,7 +116,7 @@ fun ChartScreen(metric: Metric, state: PowerState, onBack: () -> Unit) {
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                     fixedMin = metric.fixedMin,
                     fixedMax = metric.fixedMax,
-                    highlight = if (metric == Metric.SIGNAL) flags else null,
+                    highlight = if (metric == Metric.SIGNAL || metric == Metric.PING) flags else null,
                 )
             }
             Row(modifier = Modifier.fillMaxWidth()) {

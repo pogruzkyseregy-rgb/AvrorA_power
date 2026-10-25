@@ -322,7 +322,7 @@ fun Metrics(s: PowerState, onOpen: (String) -> Unit) {
         // Network goes first: it is the most important cell while white lists are in play.
         Cell(
             "СЕТЬ",
-            SignalMonitor.level.intValue.let { if (it >= 0) "$it/4 · ${it * 25}%" else "—" },
+            netValue(),
             SignalMonitor.level.intValue.let { if (it >= 0) it / 4f else null },
             "SIGNAL",
             signal = SignalMonitor.level.intValue.takeIf { it >= 0 },
@@ -363,6 +363,15 @@ fun Metrics(s: PowerState, onOpen: (String) -> Unit) {
             }
         }
     }
+}
+
+/** Signal bars and ping for the network cell, e.g. "3/4 · 84 мс". */
+fun netValue(): String {
+    val sig = SignalMonitor.level.intValue
+    val ping = SignalMonitor.pingMs.intValue
+    val bars = if (sig >= 0) "$sig/4" else "—"
+    val p = if (ping >= 0) "$ping мс" else "—"
+    return "$bars · $p"
 }
 
 fun sourceText(s: ChargeSource) = when (s) {
