@@ -319,6 +319,15 @@ fun Metrics(s: PowerState, onOpen: (String) -> Unit) {
     val storPct = if (s.storageTotalGb > 0) s.storageUsedGb / s.storageTotalGb else 0f
 
     val cells = listOf(
+        // Network goes first: it is the most important cell while white lists are in play.
+        Cell(
+            "СЕТЬ",
+            SignalMonitor.level.intValue.let { if (it >= 0) "$it/4 · ${it * 25}%" else "—" },
+            SignalMonitor.level.intValue.let { if (it >= 0) it / 4f else null },
+            "SIGNAL",
+            signal = SignalMonitor.level.intValue.takeIf { it >= 0 },
+            alert = SignalMonitor.whitelist.value,
+        ),
         Cell("НАПРЯЖЕНИЕ", "%.2f V".format(s.voltageV), (s.voltageV - 3.0f) / 1.4f, "VOLTAGE"),
         Cell("ТОК", s.currentMa?.let { "$it mA" } ?: "—", s.currentMa?.let { kotlin.math.abs(it) / 3000f }, "CURRENT"),
         Cell("ТЕМПЕРАТУРА", "%.1f °C".format(s.temperatureC), (s.temperatureC - 20f) / 40f, "TEMP"),
@@ -334,14 +343,6 @@ fun Metrics(s: PowerState, onOpen: (String) -> Unit) {
         Cell("ОЗУ", "${s.ramUsedMb} / ${s.ramTotalMb} MB", ramPct, "RAM"),
         Cell("ПАМЯТЬ", "%.0f / %.0f GB".format(s.storageUsedGb, s.storageTotalGb), storPct, "STORAGE"),
         Cell("ТЕХНОЛОГИЯ", s.technology, null, null),
-        Cell(
-            "СЕТЬ",
-            SignalMonitor.level.intValue.let { if (it >= 0) "$it/4 · ${it * 25}%" else "—" },
-            SignalMonitor.level.intValue.let { if (it >= 0) it / 4f else null },
-            "SIGNAL",
-            signal = SignalMonitor.level.intValue.takeIf { it >= 0 },
-            alert = SignalMonitor.whitelist.value,
-        ),
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

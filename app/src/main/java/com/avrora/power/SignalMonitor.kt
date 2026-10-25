@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.telephony.PhoneStateListener
@@ -89,24 +90,27 @@ object SignalMonitor {
      */
     suspend fun probe(ctx: Context) {
         val cm = ctx.getSystemService(ConnectivityManager::class.java)
-        val net = cm?.activeNetwork
-        val caps = if (cm != null && net != null) cm.getNetworkCapabilities(net) else null
-        val mobile = caps != null &&
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
-            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-        if (!mobile) {
+        // With a VPN on, the default network is the VPN, so find the cellular network itself.
+        val cellular: Network? = if (cm == null) null else cm.allNetworks.firstOrNull { net ->
+            val caps = cm.getNetworkCapabilities(net)
+            caps != null &&
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        }
+        if (cellular == null) {
             whitelist.value = false
             return
         }
         val reachable = coroutineScope {
-            hosts.map { url -> async(Dispatchers.IO) { reachable(url) } }.awaitAll().count { it }
+            hosts.map { url -> async(Dispatchers.IO) { reachable(cellular, url) } }.awaitAll().count { it }
         }
         // Without a signal, "nothing opens" just means no connection, so it does not count.
         whitelist.value = level.intValue > 0 && reachable <= 1
     }
 
-    private fun reachable(url: String): Boolean = runCatching {
-        val c = URL(url).openConnection() as HttpURLConnection
+    // Bound to the cellular network, so the request goes out there even when a VPN is active.
+    private fun reachable(network: Network, url: String): Boolean = runCatching {
+        val c = network.openConnection(URL(url)) as HttpURLConnection
         c.connectTimeout = 4000
         c.readTimeout = 4000
         c.requestMethod = "HEAD"
