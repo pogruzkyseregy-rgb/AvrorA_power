@@ -160,6 +160,11 @@ fun SettingsScreen(onBack: () -> Unit) {
         PermissionsSection()
 
         Spacer(Modifier.height(20.dp))
+        Text("СТАТУС-БАР", color = Cyan.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
+        Spacer(Modifier.height(6.dp))
+        StatusOverlaySection()
+
+        Spacer(Modifier.height(20.dp))
         Text("СЕРТИФИКАТ", color = Cyan.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
         Spacer(Modifier.height(6.dp))
         Certificate(ctx)

@@ -54,6 +54,7 @@ class RecorderService : Service() {
             while (isActive) {
                 // Retried every tick: the permission may have been granted after the service started.
                 SignalMonitor.ensureListening(this@RecorderService)
+                StatusOverlay.sync(this@RecorderService)
                 // White-list check every other tick (about once a minute), to keep traffic small.
                 if (tick % 2 == 0) SignalMonitor.probe(this@RecorderService)
                 tick++
