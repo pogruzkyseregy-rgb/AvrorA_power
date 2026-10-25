@@ -321,7 +321,7 @@ fun Metrics(s: PowerState, onOpen: (String) -> Unit) {
     val cells = listOf(
         // Network goes first: it is the most important cell while white lists are in play.
         Cell(
-            "СЕТЬ",
+            netLabel(),
             netValue(),
             SignalMonitor.level.intValue.let { if (it >= 0) it / 4f else null },
             "SIGNAL",
@@ -363,6 +363,13 @@ fun Metrics(s: PowerState, onOpen: (String) -> Unit) {
             }
         }
     }
+}
+
+/** Label of the network cell: says the mode when it is not normal. */
+fun netLabel(): String = when (SignalMonitor.status.value) {
+    SignalMonitor.NetMode.WHITELIST -> "СЕТЬ · БЕЛЫЕ СПИСКИ"
+    SignalMonitor.NetMode.NO_ACCESS -> "СЕТЬ · НЕТ ДОСТУПА"
+    else -> "СЕТЬ"
 }
 
 /** Signal bars and ping for the network cell, e.g. "3/4 · 84 мс". */

@@ -32,6 +32,9 @@ object SignalMonitor {
     /** True while the mobile network looks limited to a white list. */
     val whitelist = mutableStateOf(false)
 
+    /** Confirmed network mode, shown in the UI. */
+    val status = mutableStateOf(NetMode.UNKNOWN)
+
     /** Ping in ms to the reachable sites (average), or -1 when nothing answered. */
     val pingMs = mutableIntStateOf(-1)
 
@@ -45,12 +48,18 @@ object SignalMonitor {
         "https://www.msftconnecttest.com/connecttest.txt",
     )
 
-    // Domestic sites: the ones a white list keeps open.
+    // Domestic services: white lists differ by operator, so the list is wide.
     private val domestic = listOf(
-        "https://ya.ru",
-        "https://vk.com",
         "https://www.gosuslugi.ru",
+        "https://ya.ru",
+        "https://yandex.ru",
+        "https://vk.com",
         "https://mail.ru",
+        "https://dzen.ru",
+        "https://www.sberbank.ru",
+        "https://www.nalog.gov.ru",
+        "https://www.mos.ru",
+        "https://max.ru",
     )
 
     fun hasPhonePermission(ctx: Context): Boolean =
@@ -96,7 +105,7 @@ object SignalMonitor {
     }
 
     /** Result of one round of checks. */
-    enum class NetMode { UNKNOWN, OPEN, WHITELIST }
+    enum class NetMode { UNKNOWN, OPEN, WHITELIST, NO_ACCESS }
 
     /**
      * One check round over the mobile network.
@@ -135,6 +144,9 @@ object SignalMonitor {
         val mode = when {
             foreignOk >= 2 -> NetMode.OPEN
             foreignOk == 0 && domesticOk >= 1 -> NetMode.WHITELIST
+            // Nothing answers at all: most likely a white list whose services are not in our list,
+            // or no data. It cannot be told apart from outside.
+            answered.isEmpty() -> NetMode.NO_ACCESS
             else -> NetMode.UNKNOWN
         }
         observe(ctx, mode)
@@ -153,11 +165,15 @@ object SignalMonitor {
         if (streak < 2 || seen == confirmed) return
 
         val wasKnown = confirmed != NetMode.UNKNOWN
+        val wasWhitelist = confirmed == NetMode.WHITELIST
+        val isWhitelist = seen == NetMode.WHITELIST
         confirmed = seen
-        whitelist.value = seen == NetMode.WHITELIST
-        // The first judgement after start is not announced: it only sets the starting state.
-        if (wasKnown) {
-            if (seen == NetMode.WHITELIST) {
+        status.value = seen
+        whitelist.value = isWhitelist
+        // Announce only real transitions into or out of white-list mode.
+        // The first judgement after start only sets the starting state.
+        if (wasKnown && wasWhitelist != isWhitelist) {
+            if (isWhitelist) {
                 Alerts.post(ctx, 6, "Белые списки включены", "Мобильный интернет ограничен списком сайтов.")
             } else {
                 Alerts.post(ctx, 6, "Белые списки отключены", "Обычный доступ к интернету восстановлен.")
