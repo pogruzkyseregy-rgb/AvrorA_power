@@ -40,6 +40,7 @@ class RecorderService : Service() {
         super.onCreate()
         registerReceiver(powerReceiver, IntentFilter(Intent.ACTION_POWER_CONNECTED))
         Alerts.ensureChannels(this)
+        SignalMonitor.loadManual(this)
         // Android 14+ requires the foreground service type to be passed explicitly.
         androidx.core.app.ServiceCompat.startForeground(
             this,

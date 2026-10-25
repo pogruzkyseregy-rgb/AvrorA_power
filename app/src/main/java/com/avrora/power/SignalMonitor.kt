@@ -35,6 +35,38 @@ object SignalMonitor {
     /** Confirmed network mode, shown in the UI. */
     val status = mutableStateOf(NetMode.UNKNOWN)
 
+    /** -1 = automatic, 0 = forced off, 1 = forced on. Set by the user when the check cannot see the truth. */
+    val manual = mutableIntStateOf(-1)
+
+    /** Last round: each site and its answer time in ms (null = no answer). */
+    val lastResults = mutableStateOf<List<Pair<String, Long?>>>(emptyList())
+
+    fun loadManual(ctx: Context) {
+        manual.intValue = ctx.getSharedPreferences("avrora", Context.MODE_PRIVATE).getInt("wlManual", -1)
+        applyEffective()
+    }
+
+    /** Cycles automatic → on → off → automatic. */
+    fun cycleManual(ctx: Context) {
+        val next = when (manual.intValue) {
+            -1 -> 1
+            1 -> 0
+            else -> -1
+        }
+        manual.intValue = next
+        ctx.getSharedPreferences("avrora", Context.MODE_PRIVATE).edit().putInt("wlManual", next).apply()
+        applyEffective()
+    }
+
+    // The value the rest of the app uses: the manual setting wins over the automatic check.
+    private fun applyEffective() {
+        whitelist.value = when (manual.intValue) {
+            1 -> true
+            0 -> false
+            else -> confirmed == NetMode.WHITELIST
+        }
+    }
+
     /** Ping in ms to the reachable sites (average), or -1 when nothing answered. */
     val pingMs = mutableIntStateOf(-1)
 
@@ -135,6 +167,7 @@ object SignalMonitor {
             (foreign + domestic).map { url -> async(Dispatchers.IO) { url to timedRequest(cellular, url) } }
                 .awaitAll()
         }
+        lastResults.value = results
         val answered = results.mapNotNull { it.second }
         // Ping = average answer time of the sites that did respond.
         pingMs.intValue = if (answered.isEmpty()) -1 else answered.average().toInt()
@@ -169,7 +202,7 @@ object SignalMonitor {
         val isWhitelist = seen == NetMode.WHITELIST
         confirmed = seen
         status.value = seen
-        whitelist.value = isWhitelist
+        applyEffective()
         // Announce only real transitions into or out of white-list mode.
         // The first judgement after start only sets the starting state.
         if (wasKnown && wasWhitelist != isWhitelist) {

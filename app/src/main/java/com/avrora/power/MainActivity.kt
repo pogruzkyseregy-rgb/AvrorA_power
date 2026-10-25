@@ -366,9 +366,9 @@ fun Metrics(s: PowerState, onOpen: (String) -> Unit) {
 }
 
 /** Label of the network cell: says the mode when it is not normal. */
-fun netLabel(): String = when (SignalMonitor.status.value) {
-    SignalMonitor.NetMode.WHITELIST -> "СЕТЬ · БЕЛЫЕ СПИСКИ"
-    SignalMonitor.NetMode.NO_ACCESS -> "СЕТЬ · НЕТ ДОСТУПА"
+fun netLabel(): String = when {
+    SignalMonitor.whitelist.value -> "СЕТЬ · БЕЛЫЕ СПИСКИ"
+    SignalMonitor.status.value == SignalMonitor.NetMode.NO_ACCESS -> "СЕТЬ · НЕТ ДОСТУПА"
     else -> "СЕТЬ"
 }
 
