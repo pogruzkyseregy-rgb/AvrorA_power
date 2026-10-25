@@ -19,58 +19,49 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URL
 
 /**
- * Mobile signal level (0–4 bars) and a check for "белые списки" mode.
- * White-list mode: the mobile network is up, but almost none of the usual sites open.
+ * Mobile signal level (0–4 bars), ping, and a check for "белые списки" mode.
  */
 object SignalMonitor {
+    /** Result of one round of checks. */
+    enum class NetMode { UNKNOWN, OPEN, WHITELIST, NO_ACCESS }
+
+    /** What happened when one site was checked over the mobile network. */
+    data class Probe(
+        val url: String,
+        /** Answer time in ms, or null if the site did not answer. */
+        val ms: Long?,
+        /** The name resolved to an address on the mobile network. */
+        val dns: Boolean,
+        /** The connection timed out (as opposed to being refused or failing at once). */
+        val timeout: Boolean,
+    )
+
     /** 0–4 bars, or -1 when unknown (no permission yet, or no signal). */
     val level = mutableIntStateOf(-1)
-
-    /** True while the mobile network looks limited to a white list. */
-    val whitelist = mutableStateOf(false)
-
-    /** Confirmed network mode, shown in the UI. */
-    val status = mutableStateOf(NetMode.UNKNOWN)
-
-    /** -1 = automatic, 0 = forced off, 1 = forced on. Set by the user when the check cannot see the truth. */
-    val manual = mutableIntStateOf(-1)
-
-    /** Last round: each site and its answer time in ms (null = no answer). */
-    val lastResults = mutableStateOf<List<Pair<String, Long?>>>(emptyList())
-
-    fun loadManual(ctx: Context) {
-        manual.intValue = ctx.getSharedPreferences("avrora", Context.MODE_PRIVATE).getInt("wlManual", -1)
-        applyEffective()
-    }
-
-    /** Cycles automatic → on → off → automatic. */
-    fun cycleManual(ctx: Context) {
-        val next = when (manual.intValue) {
-            -1 -> 1
-            1 -> 0
-            else -> -1
-        }
-        manual.intValue = next
-        ctx.getSharedPreferences("avrora", Context.MODE_PRIVATE).edit().putInt("wlManual", next).apply()
-        applyEffective()
-    }
-
-    // The value the rest of the app uses: the manual setting wins over the automatic check.
-    private fun applyEffective() {
-        whitelist.value = when (manual.intValue) {
-            1 -> true
-            0 -> false
-            else -> confirmed == NetMode.WHITELIST
-        }
-    }
 
     /** Ping in ms to the reachable sites (average), or -1 when nothing answered. */
     val pingMs = mutableIntStateOf(-1)
 
+    /** True while white-list mode is in effect (automatic result or the manual setting). */
+    val whitelist = mutableStateOf(false)
+
+    /** Confirmed automatic result, shown in the UI. */
+    val status = mutableStateOf(NetMode.UNKNOWN)
+
+    /** -1 = automatic, 0 = forced off, 1 = forced on. */
+    val manual = mutableIntStateOf(-1)
+
+    /** Last round: each site and what happened. */
+    val lastResults = mutableStateOf<List<Probe>>(emptyList())
+
     private var callback: Any? = null
+    private var candidate = NetMode.UNKNOWN
+    private var streak = 0
+    private var confirmed = NetMode.UNKNOWN
 
     // Foreign services: normally open, closed by a white list.
     private val foreign = listOf(
@@ -97,6 +88,32 @@ object SignalMonitor {
     fun hasPhonePermission(ctx: Context): Boolean =
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.READ_PHONE_STATE) ==
             PackageManager.PERMISSION_GRANTED
+
+    fun loadManual(ctx: Context) {
+        manual.intValue = ctx.getSharedPreferences("avrora", Context.MODE_PRIVATE).getInt("wlManual", -1)
+        applyEffective()
+    }
+
+    /** Cycles automatic → on → off → automatic. */
+    fun cycleManual(ctx: Context) {
+        val next = when (manual.intValue) {
+            -1 -> 1
+            1 -> 0
+            else -> -1
+        }
+        manual.intValue = next
+        ctx.getSharedPreferences("avrora", Context.MODE_PRIVATE).edit().putInt("wlManual", next).apply()
+        applyEffective()
+    }
+
+    // The manual setting wins over the automatic result.
+    private fun applyEffective() {
+        whitelist.value = when (manual.intValue) {
+            1 -> true
+            0 -> false
+            else -> confirmed == NetMode.WHITELIST
+        }
+    }
 
     /** Starts listening to signal changes. Safe to call repeatedly; it retries until the permission is granted. */
     @Suppress("DEPRECATION")
@@ -136,17 +153,14 @@ object SignalMonitor {
         callback = null
     }
 
-    /** Result of one round of checks. */
-    enum class NetMode { UNKNOWN, OPEN, WHITELIST, NO_ACCESS }
-
     /**
      * One check round over the mobile network.
-     * Foreign services that are open in normal mode fail in white-list mode.
-     * Domestic sites are the ones a white list keeps. So:
-     * - foreign answers → open;
-     * - no foreign, but some domestic answer → white-list;
-     * - anything else (no signal, no connection) → no judgement this round.
-     * A change is confirmed only after two equal rounds in a row, so one glitch does not flip it.
+     * - Foreign services answer → open.
+     * - Foreign ones do not, but domestic ones do → white list.
+     * - Nothing answers, but the names resolve and connections time out → white list
+     *   (the usual picture when a white list is on and our services are not in it).
+     * - Nothing resolves at all → no access.
+     * A change is confirmed only after two equal rounds in a row.
      */
     suspend fun probe(ctx: Context) {
         val cm = ctx.getSystemService(ConnectivityManager::class.java)
@@ -164,30 +178,29 @@ object SignalMonitor {
         }
 
         val results = coroutineScope {
-            (foreign + domestic).map { url -> async(Dispatchers.IO) { url to timedRequest(cellular, url) } }
-                .awaitAll()
+            (foreign + domestic).map { url -> async(Dispatchers.IO) { checkHost(cellular, url) } }.awaitAll()
         }
         lastResults.value = results
-        val answered = results.mapNotNull { it.second }
+
+        val answered = results.mapNotNull { it.ms }
         // Ping = average answer time of the sites that did respond.
         pingMs.intValue = if (answered.isEmpty()) -1 else answered.average().toInt()
 
-        val foreignOk = results.count { it.first in foreign && it.second != null }
-        val domesticOk = results.count { it.first in domestic && it.second != null }
+        val foreignOk = results.count { it.url in foreign && it.ms != null }
+        val domesticOk = results.count { it.url in domestic && it.ms != null }
+        val resolved = results.count { it.dns }
+        val timeouts = results.count { it.timeout }
+        val half = results.size / 2
         val mode = when {
             foreignOk >= 2 -> NetMode.OPEN
             foreignOk == 0 && domesticOk >= 1 -> NetMode.WHITELIST
-            // Nothing answers at all: most likely a white list whose services are not in our list,
-            // or no data. It cannot be told apart from outside.
+            // Names resolve, but connections hang: the typical picture of a white list.
+            answered.isEmpty() && resolved >= half && timeouts >= half -> NetMode.WHITELIST
             answered.isEmpty() -> NetMode.NO_ACCESS
             else -> NetMode.UNKNOWN
         }
         observe(ctx, mode)
     }
-
-    private var candidate = NetMode.UNKNOWN
-    private var streak = 0
-    private var confirmed = NetMode.UNKNOWN
 
     private fun observe(ctx: Context, seen: NetMode) {
         if (seen == NetMode.UNKNOWN) {
@@ -214,17 +227,27 @@ object SignalMonitor {
         }
     }
 
-    // Bound to the cellular network, so the request goes out there even when a VPN is active.
-    // Returns the answer time in ms, or null if the site did not answer.
-    private fun timedRequest(network: Network, url: String): Long? = runCatching {
+    // Bound to the cellular network, so requests go out there even when a VPN is active.
+    private fun checkHost(network: Network, url: String): Probe {
+        val host = URL(url).host
+        val resolved = runCatching { network.getAllByName(host).isNotEmpty() }.getOrDefault(false)
+        if (!resolved) return Probe(url, null, dns = false, timeout = false)
+
         val t0 = System.nanoTime()
-        val c = network.openConnection(URL(url)) as HttpURLConnection
-        c.connectTimeout = 4000
-        c.readTimeout = 4000
-        c.requestMethod = "HEAD"
-        c.instanceFollowRedirects = false
-        val code = c.responseCode
-        c.disconnect()
-        if (code > 0) (System.nanoTime() - t0) / 1_000_000 else null
-    }.getOrNull()
+        return try {
+            val c = network.openConnection(URL(url)) as HttpURLConnection
+            c.connectTimeout = 4000
+            c.readTimeout = 4000
+            c.requestMethod = "HEAD"
+            c.instanceFollowRedirects = false
+            val code = c.responseCode
+            c.disconnect()
+            val ms = if (code > 0) (System.nanoTime() - t0) / 1_000_000 else null
+            Probe(url, ms, dns = true, timeout = false)
+        } catch (e: SocketTimeoutException) {
+            Probe(url, null, dns = true, timeout = true)
+        } catch (e: Exception) {
+            Probe(url, null, dns = true, timeout = false)
+        }
+    }
 }

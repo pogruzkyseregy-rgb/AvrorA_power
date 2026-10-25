@@ -71,18 +71,23 @@ fun NetworkSection() {
     if (results.isEmpty()) {
         Text("проверки ещё не было", color = Cyan.copy(alpha = 0.5f), fontSize = 11.sp)
     }
-    results.forEach { (url, ms) ->
+    results.forEach { p ->
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
             Text(
-                url.removePrefix("https://").substringBefore("/"),
+                p.url.removePrefix("https://").substringBefore("/"),
                 color = Cyan,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 modifier = Modifier.weight(1f),
             )
             Text(
-                if (ms != null) "$ms мс" else "нет ответа",
-                color = if (ms != null) Cyan else AlertRed,
+                when {
+                    p.ms != null -> "${p.ms} мс"
+                    !p.dns -> "адрес не найден"
+                    p.timeout -> "таймаут"
+                    else -> "отказ"
+                },
+                color = if (p.ms != null) Cyan else AlertRed,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
             )
