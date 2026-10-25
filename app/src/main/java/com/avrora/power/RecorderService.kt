@@ -50,7 +50,13 @@ class RecorderService : Service() {
         registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
 
         scope.launch {
+            var tick = 0
             while (isActive) {
+                // Retried every tick: the permission may have been granted after the service started.
+                SignalMonitor.ensureListening(this@RecorderService)
+                // White-list check every other tick (about once a minute), to keep traffic small.
+                if (tick % 2 == 0) SignalMonitor.probe(this@RecorderService)
+                tick++
                 val s = PowerReader.snapshot(this@RecorderService)
                 History.append(this@RecorderService, s)
                 Alerts.check(this@RecorderService, s)
@@ -66,6 +72,7 @@ class RecorderService : Service() {
     override fun onDestroy() {
         runCatching { unregisterReceiver(batteryReceiver) }
         runCatching { unregisterReceiver(powerReceiver) }
+        SignalMonitor.stop(this)
         scope.cancel()
         super.onDestroy()
     }

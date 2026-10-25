@@ -12,6 +12,7 @@ enum class Metric(val title: String, val fixedMin: Float?, val fixedMax: Float?)
     TEMP("ТЕМПЕРАТУРА", null, null),
     RAM("ОЗУ", 0f, 100f),
     STORAGE("ПАМЯТЬ", 0f, 100f),
+    SIGNAL("СИГНАЛ", 0f, 100f),
 }
 
 /** One recorded point in time. */
@@ -24,6 +25,10 @@ data class Sample(
     val ram: Float,
     val stor: Float,
     val chg: Boolean = false,
+    /** Signal bars 0–4, or -1 when unknown. */
+    val sig: Int = -1,
+    /** True while the mobile network was limited to a white list. */
+    val wl: Boolean = false,
 ) {
     fun value(m: Metric): Float? = when (m) {
         Metric.LEVEL -> level.toFloat()
@@ -32,6 +37,7 @@ data class Sample(
         Metric.TEMP -> temp
         Metric.RAM -> ram
         Metric.STORAGE -> stor
+        Metric.SIGNAL -> if (sig >= 0) sig * 25f else null
     }
 
     companion object {
@@ -44,6 +50,8 @@ data class Sample(
             ram = pct(s.ramUsedMb.toFloat(), s.ramTotalMb.toFloat()),
             stor = pct(s.storageUsedGb, s.storageTotalGb),
             chg = s.isCharging,
+            sig = SignalMonitor.level.intValue,
+            wl = SignalMonitor.whitelist.value,
         )
 
         private fun pct(used: Float, total: Float): Float =
@@ -98,11 +106,15 @@ object History {
             ram = p[5].toFloat(),
             stor = p[6].toFloat(),
             chg = p.getOrNull(7) == "1",
+            // Older rows have no signal columns; they load with defaults.
+            sig = p.getOrNull(8)?.toIntOrNull() ?: -1,
+            wl = p.getOrNull(9) == "1",
         )
     }.getOrNull()
 
     private fun line(s: Sample): String =
-        "${s.t},${s.level},${s.volt},${s.cur ?: ""},${s.temp},${s.ram},${s.stor},${if (s.chg) 1 else 0}"
+        "${s.t},${s.level},${s.volt},${s.cur ?: ""},${s.temp},${s.ram},${s.stor}," +
+            "${if (s.chg) 1 else 0},${s.sig},${if (s.wl) 1 else 0}"
 }
 
 /** Forecast of time left on battery, from the slope of recent discharge. */

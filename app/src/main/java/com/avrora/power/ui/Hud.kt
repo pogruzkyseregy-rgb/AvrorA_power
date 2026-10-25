@@ -15,6 +15,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.alpha
+import kotlinx.coroutines.delay
+import kotlin.random.Random
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -31,6 +40,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+/** Warning colour for white-list mode and other alerts. */
+val AlertRed = Color(0xFFFF3B5C)
 
 /** Rectangle with the top-left and bottom-right corners cut diagonally. */
 private fun chamfer(w: Float, h: Float, cut: Float) = Path().apply {
@@ -195,7 +207,10 @@ fun SegmentBar(
     }
 }
 
-/** Label + value cell used in the metrics grid. */
+/**
+ * Label + value cell used in the metrics grid.
+ * [signal] adds a bar icon (0–4). [alert] switches the cell to red and makes it glitch.
+ */
 @Composable
 fun HudMetric(
     label: String,
@@ -203,20 +218,65 @@ fun HudMetric(
     bar: Float? = null,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    signal: Int? = null,
+    alert: Boolean = false,
 ) {
+    val tint = if (alert) AlertRed else Cyan
+    val jitter = remember { mutableFloatStateOf(0f) }
+    val flicker = remember { mutableFloatStateOf(1f) }
+    LaunchedEffect(alert) {
+        if (!alert) {
+            jitter.floatValue = 0f
+            flicker.floatValue = 1f
+            return@LaunchedEffect
+        }
+        while (true) {
+            jitter.floatValue = Random.nextFloat() * 6f - 3f
+            flicker.floatValue = if (Random.nextFloat() < 0.25f) 0.3f else 1f
+            delay(Random.nextLong(60, 180))
+        }
+    }
+
     HudPanel(modifier = modifier, onClick = onClick) {
-        Text(label, color = Cyan.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (signal != null) {
+                SignalIcon(
+                    bars = signal,
+                    color = tint,
+                    modifier = Modifier.offset(x = jitter.floatValue.dp).alpha(flicker.floatValue),
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(label, color = tint.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 2.sp)
+        }
         Spacer8()
         Text(
             value,
-            color = Cyan,
+            color = tint.copy(alpha = flicker.floatValue),
             fontSize = 17.sp,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.offset(x = jitter.floatValue.dp),
         )
         if (bar != null) {
             Spacer8()
             SegmentBar(bar)
+        }
+    }
+}
+
+/** Four signal bars; lit ones are [bars] high. */
+@Composable
+private fun SignalIcon(bars: Int, color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier.size(width = 14.dp, height = 12.dp)) {
+        val w = size.width / 4f
+        for (i in 0 until 4) {
+            val h = size.height * (i + 1) / 4f
+            drawRect(
+                color = if (i < bars) color else color.copy(alpha = 0.18f),
+                topLeft = Offset(i * w + 1.dp.toPx(), size.height - h),
+                size = Size(w - 2.dp.toPx(), h),
+            )
         }
     }
 }

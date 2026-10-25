@@ -16,6 +16,8 @@ fun LineChart(
     modifier: Modifier = Modifier,
     fixedMin: Float? = null,
     fixedMax: Float? = null,
+    /** Same length as values. Segments whose point is flagged are drawn in red. */
+    highlight: List<Boolean>? = null,
 ) {
     val lo = fixedMin ?: values.minOrNull() ?: 0f
     val hi0 = fixedMax ?: values.maxOrNull() ?: 1f
@@ -50,6 +52,14 @@ fun LineChart(
 
         drawPath(fill, Brush.verticalGradient(listOf(Cyan.copy(alpha = 0.35f), Cyan.copy(alpha = 0f))))
         drawPath(line, Cyan, style = Stroke(2.dp.toPx()))
+
+        if (highlight != null && highlight.size == values.size) {
+            for (i in 1 until pts.size) {
+                if (highlight[i] || highlight[i - 1]) {
+                    drawLine(AlertRed, pts[i - 1], pts[i], strokeWidth = 2.dp.toPx())
+                }
+            }
+        }
         drawCircle(Cyan, radius = 4.dp.toPx(), center = pts.last())
     }
 }

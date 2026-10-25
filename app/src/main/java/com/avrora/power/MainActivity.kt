@@ -304,7 +304,14 @@ fun StatusBanner(s: PowerState) {
     }
 }
 
-private data class Cell(val label: String, val value: String, val bar: Float?, val metric: String?)
+private data class Cell(
+    val label: String,
+    val value: String,
+    val bar: Float?,
+    val metric: String?,
+    val signal: Int? = null,
+    val alert: Boolean = false,
+)
 
 @Composable
 fun Metrics(s: PowerState, onOpen: (String) -> Unit) {
@@ -327,6 +334,14 @@ fun Metrics(s: PowerState, onOpen: (String) -> Unit) {
         Cell("ОЗУ", "${s.ramUsedMb} / ${s.ramTotalMb} MB", ramPct, "RAM"),
         Cell("ПАМЯТЬ", "%.0f / %.0f GB".format(s.storageUsedGb, s.storageTotalGb), storPct, "STORAGE"),
         Cell("ТЕХНОЛОГИЯ", s.technology, null, null),
+        Cell(
+            "СЕТЬ",
+            SignalMonitor.level.intValue.let { if (it >= 0) "$it/4 · ${it * 25}%" else "—" },
+            SignalMonitor.level.intValue.let { if (it >= 0) it / 4f else null },
+            "SIGNAL",
+            signal = SignalMonitor.level.intValue.takeIf { it >= 0 },
+            alert = SignalMonitor.whitelist.value,
+        ),
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -339,6 +354,8 @@ fun Metrics(s: PowerState, onOpen: (String) -> Unit) {
                         bar = c.bar?.coerceIn(0f, 1f),
                         modifier = Modifier.weight(1f),
                         onClick = c.metric?.let { k -> { onOpen(k) } },
+                        signal = c.signal,
+                        alert = c.alert,
                     )
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))

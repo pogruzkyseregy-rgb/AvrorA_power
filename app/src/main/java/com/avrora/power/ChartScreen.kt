@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.avrora.power.ui.AlertRed
 import com.avrora.power.ui.Cyan
 import com.avrora.power.ui.HudPanel
 import com.avrora.power.ui.LineChart
@@ -28,7 +29,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 fun fmtValue(m: Metric, v: Float): String = when (m) {
-    Metric.LEVEL, Metric.RAM, Metric.STORAGE -> "%.0f%%".format(v)
+    Metric.LEVEL, Metric.RAM, Metric.STORAGE, Metric.SIGNAL -> "%.0f%%".format(v)
     Metric.VOLTAGE -> "%.2f V".format(v)
     Metric.CURRENT -> "%.0f mA".format(v)
     Metric.TEMP -> "%.1f °C".format(v)
@@ -38,7 +39,10 @@ fun fmtValue(m: Metric, v: Float): String = when (m) {
 @Composable
 fun ChartScreen(metric: Metric, state: PowerState, onBack: () -> Unit) {
     val samples = History.samples
-    val values = samples.mapNotNull { it.value(metric) }
+    // Points with a value, plus whether each one was taken during white-list mode.
+    val points = samples.mapNotNull { s -> s.value(metric)?.let { it to s.wl } }
+    val values = points.map { it.first }
+    val flags = points.map { it.second }
     val timeFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     val live = metric.live(state)
     val avg = if (values.isEmpty()) null else values.average().toFloat()
@@ -77,6 +81,13 @@ fun ChartScreen(metric: Metric, state: PowerState, onBack: () -> Unit) {
                 fontSize = 10.sp,
                 letterSpacing = 2.sp,
             )
+            if (metric == Metric.SIGNAL) {
+                Text(
+                    "красным — время в режиме белых списков",
+                    color = AlertRed.copy(alpha = 0.8f),
+                    fontSize = 10.sp,
+                )
+            }
             Spacer(Modifier.height(10.dp))
             Row(modifier = Modifier.fillMaxWidth().height(180.dp)) {
                 Column(
@@ -104,6 +115,7 @@ fun ChartScreen(metric: Metric, state: PowerState, onBack: () -> Unit) {
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                     fixedMin = metric.fixedMin,
                     fixedMax = metric.fixedMax,
+                    highlight = if (metric == Metric.SIGNAL) flags else null,
                 )
             }
             Row(modifier = Modifier.fillMaxWidth()) {

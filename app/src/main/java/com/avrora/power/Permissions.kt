@@ -78,6 +78,7 @@ private data class PermState(
     val battery: Boolean,
     val overlay: Boolean,
     val fullScreen: Boolean,
+    val phone: Boolean,
 )
 
 private fun readPerms(ctx: Context): PermState {
@@ -92,7 +93,8 @@ private fun readPerms(ctx: Context): PermState {
     } else {
         true
     }
-    return PermState(notif, files, battery, overlay, fullScreen)
+    val phone = SignalMonitor.hasPhonePermission(ctx)
+    return PermState(notif, files, battery, overlay, fullScreen, phone)
 }
 
 private fun openIntent(ctx: Context, action: String, withPackage: Boolean = false) {
@@ -121,6 +123,13 @@ fun PermissionsSection() {
     val askNotifications = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { perms = readPerms(ctx) }
+
+    val askPhone = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) {
+        perms = readPerms(ctx)
+        SignalMonitor.ensureListening(ctx)
+    }
 
     PermRow(
         title = "УВЕДОМЛЕНИЯ",
@@ -156,6 +165,15 @@ fun PermissionsSection() {
         ok = perms.overlay,
     ) {
         openIntent(ctx, Settings.ACTION_MANAGE_OVERLAY_PERMISSION, withPackage = true)
+    }
+
+    PermRow(
+        title = "СИГНАЛ СЕТИ",
+        hint = "уровень сотовой связи и график белых списков",
+        ok = perms.phone,
+    ) {
+        if (!perms.phone) askPhone.launch(Manifest.permission.READ_PHONE_STATE)
+        else openIntent(ctx, Settings.ACTION_APPLICATION_DETAILS_SETTINGS, withPackage = true)
     }
 
     PermRow(
